@@ -11,7 +11,9 @@
 
 import type {
   ClassParticipant,
+  ClassState,
   ClassType,
+  DayBlock,
   Discount,
   Expense,
   Pack,
@@ -36,12 +38,16 @@ import { displayName, makeStudentFromName, normalizeName } from './students';
 
 const VALID_LEVELS: StudentLevel[] = ['principiante', 'intermedio', 'avanzado', 'competicion'];
 
-/** Intermedio v2: como una clase v2, con `paid`, antes de derivar el estado en v3. */
+/** Intermedio v2: como una clase v2, con `paid`, antes de derivar el estado en v3.
+ *  Además carga los campos v4 (duración/estado/serie) si el origen los trae. */
 interface V2Entry {
   type: ClassType;
   participants: ClassParticipant[];
   price: number;
   paid: boolean;
+  duration?: number;
+  state?: ClassState;
+  seriesId?: string;
 }
 interface V2Intermediate {
   prices: Prices;
@@ -135,6 +141,9 @@ function normalizeToV2(raw: unknown): V2Intermediate {
           names?: unknown;
           price?: unknown;
           paid?: unknown;
+          duration?: unknown;
+          state?: unknown;
+          seriesId?: unknown;
         };
         const type: ClassType = entry.type === 'indiv' ? 'indiv' : 'grupal';
 
@@ -161,11 +170,16 @@ function normalizeToV2(raw: unknown): V2Intermediate {
         if (participants.length === 0) continue;
         const finalParticipants = type === 'indiv' ? participants.slice(0, 1) : participants;
 
+        const durationNum = Number(entry.duration);
+        const validStates: ClassState[] = ['confirmada', 'tentativa', 'cancelada', 'ausente'];
         cleanSlots[hour] = {
           type,
           participants: finalParticipants,
           price: Number(entry.price) || 0,
           paid: Boolean(entry.paid),
+          duration: Number.isFinite(durationNum) && durationNum > 0 ? durationNum : undefined,
+          state: validStates.includes(entry.state as ClassState) ? (entry.state as ClassState) : undefined,
+          seriesId: typeof entry.seriesId === 'string' ? entry.seriesId : undefined,
         };
       }
 
@@ -294,13 +308,21 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
 
   const packs = normalizePacks(src.packs);
   const expenses = normalizeExpenses(src.expenses);
+  const blocks = normalizeBlocks(src.blocks);
 
-  // Clases sin `paid` (el estado se deriva).
+  // Clases sin `paid` (el estado se deriva). Se conservan duración/estado/serie (v4).
   const days: AgendaData['days'] = {};
   for (const [dKey, slots] of Object.entries(v2.days)) {
-    const clean: Record<string, { type: ClassType; participants: ClassParticipant[]; price: number }> = {};
+    const clean: AgendaData['days'][string] = {};
     for (const [hour, entry] of Object.entries(slots)) {
-      clean[hour] = { type: entry.type, participants: entry.participants, price: entry.price };
+      clean[hour] = {
+        type: entry.type,
+        participants: entry.participants,
+        price: entry.price,
+        duration: entry.duration,
+        state: entry.state,
+        seriesId: entry.seriesId,
+      };
     }
     days[dKey] = clean;
   }
@@ -345,10 +367,36 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
     expenses,
     paymentMethods,
     settings,
+    blocks,
   };
 }
 
-/** Punto de entrada: normaliza cualquier JSON (v1/v2/v3) a un AgendaData v3 completo. */
-export function normalizeToV3(raw: unknown): AgendaData {
+/** Sanea los bloqueos de disponibilidad (v4) desde un JSON externo. */
+function normalizeBlocks(raw: unknown): Record<string, DayBlock> {
+  const out: Record<string, DayBlock> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [dKey, rawB] of Object.entries(raw as Record<string, unknown>)) {
+    if (!rawB || typeof rawB !== 'object') continue;
+    const b = rawB as Partial<DayBlock>;
+    const hours = Array.isArray(b.hours)
+      ? b.hours.filter((h): h is number => typeof h === 'number' && Number.isFinite(h))
+      : [];
+    const fullDay = Boolean(b.fullDay);
+    if (!fullDay && hours.length === 0) continue;
+    out[dKey] = {
+      fullDay: fullDay || undefined,
+      hours: fullDay ? undefined : hours,
+      reason: typeof b.reason === 'string' && b.reason.trim() ? b.reason.trim() : undefined,
+    };
+  }
+  return out;
+}
+
+/**
+ * Punto de entrada: normaliza cualquier JSON (v1/v2/v3/v4) a un AgendaData v4 completo.
+ * Encadena las migraciones anteriores; migrateV2toV3 ya emite la versión actual
+ * (DATA_VERSION = 4) con los campos nuevos conservados.
+ */
+export function normalizeToV4(raw: unknown): AgendaData {
   return migrateV2toV3(normalizeToV2(raw), raw);
 }

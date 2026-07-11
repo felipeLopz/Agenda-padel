@@ -34,8 +34,11 @@ export const STORAGE_KEY = 'agenda-padel:data';
 
 export const DEFAULT_PRICES: Prices = { grupal: 4000, indiv: 12000 };
 
-/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→v2→v3. */
-export const DATA_VERSION = 3;
+/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→v2→v3→v4. */
+export const DATA_VERSION = 4;
+
+/** Duraciones de clase ofrecidas (minutos). La clase clásica es de 60. */
+export const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 /** Medios de pago por defecto (la lista es configurable desde Configuración). */
 export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [

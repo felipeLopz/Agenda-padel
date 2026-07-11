@@ -1620,6 +1620,250 @@ button {
 }
 
 /* -------------------------------------------------------------------------
+   Tanda 3 — agenda avanzada: estados, bloqueos, feriados, duración, recurrencia
+   ------------------------------------------------------------------------- */
+
+.btn--active {
+  border-color: var(--blue-light);
+  color: var(--blue-light);
+}
+
+/* Chips de estado de agenda de la clase. */
+.chip--state-tentativa {
+  background: rgba(139, 150, 201, 0.18);
+  color: var(--muted);
+}
+.chip--state-cancelada {
+  background: rgba(255, 92, 108, 0.16);
+  color: var(--danger);
+}
+.chip--state-ausente {
+  background: rgba(245, 166, 35, 0.18);
+  color: var(--amber);
+}
+
+.serie-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(47, 107, 255, 0.14);
+  color: var(--blue-light);
+}
+
+/* Barra superior de la agenda del día (feriado / bloqueo / acción). */
+.day-agenda__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.holiday-tag {
+  font-size: 13px;
+  color: var(--orange-light);
+  font-weight: 600;
+}
+.block-tag {
+  font-size: 13px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Franja bloqueada en la agenda del día. */
+.day-slot--blocked {
+  opacity: 0.85;
+}
+.day-slot__blocked-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  font-size: 13px;
+  color: var(--danger);
+  background: rgba(255, 92, 108, 0.08);
+  border: 1px dashed rgba(255, 92, 108, 0.4);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+}
+
+/* Borde izquierdo de la clase según su estado de agenda. */
+.day-slot--state-tentativa {
+  border-left-color: var(--muted);
+  border-left-style: dashed;
+}
+.day-slot--state-cancelada {
+  border-left-color: var(--danger);
+  opacity: 0.7;
+}
+.day-slot--state-cancelada .day-slot__hour,
+.day-slot--state-cancelada .day-slot__price {
+  text-decoration: line-through;
+}
+.day-slot--state-ausente {
+  border-left-color: var(--amber);
+}
+
+/* Editor de recurrencia. */
+.recurrence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.recurrence__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.recurrence__row input[type='number'] {
+  width: 70px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--ink);
+}
+.recurrence__row input[type='date'] {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--ink);
+}
+.recurrence__row .select {
+  width: auto;
+}
+
+/* Grilla de horas para bloquear franjas. */
+.hour-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.hour-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hour-chip--on {
+  background: rgba(255, 92, 108, 0.16);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Marcas de feriado / bloqueo en la vista anual. */
+.day-row__holiday-dot,
+.day-row__block-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+.day-row__holiday-dot {
+  background: var(--orange);
+}
+.day-row__block-dot {
+  background: var(--danger);
+}
+.day-row--holiday {
+  background: rgba(255, 138, 61, 0.06);
+}
+.day-row--blocked {
+  background: rgba(255, 92, 108, 0.06);
+}
+
+/* Vista semanal: marcas del encabezado, bloqueos, huecos, duración, estados. */
+.week-grid__head-marks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+.mark {
+  font-size: 12px;
+  line-height: 1;
+}
+.mark--btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.55;
+  padding: 0;
+}
+.mark--btn:hover {
+  opacity: 1;
+}
+
+.week-cell--blocked {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 92, 108, 0.05),
+    rgba(255, 92, 108, 0.05) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+.week-cell--free {
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+}
+
+.week-cell {
+  position: relative;
+}
+.week-cell__dur-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  background: currentColor;
+  opacity: 0.5;
+  border-radius: 0 2px 2px 0;
+}
+.week-cell--grupal .week-cell__dur-bar {
+  color: var(--blue);
+}
+.week-cell--indiv .week-cell__dur-bar {
+  color: var(--orange);
+}
+.week-cell__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.week-cell__range {
+  font-size: 10px;
+  color: var(--muted);
+}
+.week-cell__state {
+  text-transform: capitalize;
+  color: var(--amber);
+}
+.week-cell--state-cancelada {
+  opacity: 0.55;
+}
+.week-cell--state-cancelada .week-cell__names,
+.week-cell--state-cancelada .week-cell__price {
+  text-decoration: line-through;
+}
+.week-cell--state-tentativa {
+  border-style: dashed;
+}
+
+/* -------------------------------------------------------------------------
    Responsive: celular
    ------------------------------------------------------------------------- */
 

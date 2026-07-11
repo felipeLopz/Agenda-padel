@@ -61,13 +61,32 @@ export interface ClassParticipant {
   discount?: Discount;
 }
 
+/** Estado de una clase en la agenda (distinto del estado de cobro, que se deriva). */
+export type ClassState = 'confirmada' | 'tentativa' | 'cancelada' | 'ausente';
+
 export interface ClassEntry {
   type: ClassType;
   /** Participantes de la clase. En "indiv" siempre tiene un único elemento. */
   participants: ClassParticipant[];
   /** Precio "de lista" de la clase completa (antes de descuentos). */
   price: number;
-  // Nota: ya NO existe `paid`. El estado de la clase se deriva de los pagos.
+  /** Duración en minutos. Ausente = 60 (compatibilidad con datos v3). */
+  duration?: number;
+  /** Estado de agenda. Ausente = 'confirmada'. Las 'cancelada' no generan plata. */
+  state?: ClassState;
+  /** Id de la serie recurrente a la que pertenece (si fue generada por recurrencia). */
+  seriesId?: string;
+  // Nota: ya NO existe `paid`. El estado de cobro se deriva de los pagos.
+}
+
+/** Bloqueo de disponibilidad de un día: día completo y/o algunas horas. */
+export interface DayBlock {
+  /** Todo el día bloqueado. */
+  fullDay?: boolean;
+  /** Horas puntuales bloqueadas (7..16). */
+  hours?: number[];
+  /** Motivo opcional (vacaciones, feriado personal, etc.). */
+  reason?: string;
 }
 
 /** Una franja horaria por día: la clave es la hora ("7".."16"). */
@@ -161,6 +180,8 @@ export interface AgendaData {
   /** Medios de pago configurables. */
   paymentMethods: PaymentMethod[];
   settings: Settings;
+  /** Bloqueos de disponibilidad por día (v4). */
+  blocks: Record<DayKey, DayBlock>;
 }
 
 /** Franja (día + hora) que se está creando o editando en el formulario de clase. */

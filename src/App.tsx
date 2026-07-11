@@ -12,6 +12,10 @@ import SettingsModal from './components/SettingsModal';
 import StudentProfileModal from './components/StudentProfileModal';
 import StudentFormModal from './components/StudentFormModal';
 import PaymentFormModal from './components/PaymentFormModal';
+import MoveClassModal from './components/MoveClassModal';
+import CopyWeekModal from './components/CopyWeekModal';
+import BlockDayModal from './components/BlockDayModal';
+import { startOfWeek } from './lib/date';
 import type { ClassEntry, ClassFormTarget, Student } from './types';
 
 /** Orquesta qué vista y qué modal está abierto; el estado de datos vive en AgendaContext. */
@@ -29,6 +33,9 @@ function AppShell() {
   const [payTarget, setPayTarget] = useState<{ studentId: string; classRef: { day: string; hour: number } } | null>(
     null
   );
+  const [moveTarget, setMoveTarget] = useState<{ day: string; hour: number } | null>(null);
+  const [copyWeekMonday, setCopyWeekMonday] = useState<Date | null>(null);
+  const [blockDayKey, setBlockDayKey] = useState<string | null>(null);
 
   function openNewClass(day: string, hour: number) {
     setFormTarget({ day, hour, entry: null });
@@ -56,6 +63,8 @@ function AppShell() {
             onChangeAnchor={setWeekAnchor}
             onOpenNewClass={openNewClass}
             onOpenEditClass={openEditClass}
+            onOpenCopyWeek={(fromMonday) => setCopyWeekMonday(fromMonday)}
+            onBlockDay={(day) => setBlockDayKey(day)}
           />
         )}
         {view === 'alumnos' && <StudentsView onOpenDay={setOpenDay} />}
@@ -69,6 +78,8 @@ function AppShell() {
           onNewClass={(hour) => openNewClass(openDay, hour)}
           onEditClass={(hour, entry) => openEditClass(openDay, hour, entry)}
           onRegisterPayment={(studentId, classRef) => setPayTarget({ studentId, classRef })}
+          onMoveClass={(hour) => setMoveTarget({ day: openDay, hour })}
+          onBlockDay={() => setBlockDayKey(openDay)}
         />
       )}
 
@@ -107,6 +118,14 @@ function AppShell() {
           onClose={() => setPayTarget(null)}
         />
       )}
+
+      {moveTarget && <MoveClassModal from={moveTarget} onClose={() => setMoveTarget(null)} />}
+
+      {copyWeekMonday && (
+        <CopyWeekModal fromMonday={startOfWeek(copyWeekMonday)} onClose={() => setCopyWeekMonday(null)} />
+      )}
+
+      {blockDayKey && <BlockDayModal day={blockDayKey} onClose={() => setBlockDayKey(null)} />}
     </div>
   );
 }

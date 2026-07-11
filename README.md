@@ -28,6 +28,33 @@ etiqueta, por nivel y por estado), se crean, editan y archivan.
   alumno (precio ÷ cantidad de participantes), para que los números coincidan al cobrarle
   a cada uno. En clases individuales ambas cifras son iguales.
 
+## Agenda avanzada (recurrencias, bloqueos, feriados, duraciones, estados)
+
+- **Clases recurrentes**: al crear una clase se puede marcar "Repetir" (cada N semanas,
+  hasta una fecha o una cantidad). Se generan clases reales, cada una con el mismo
+  `seriesId`. Editar/borrar una clase de la serie no toca las demás; al editar hay un
+  "Aplicar los cambios a toda la serie", y al borrar se ofrece borrar toda la serie.
+- **Copiar una semana**: desde la vista semanal, "Copiar semana" lleva todas las clases a
+  la semana que contenga la fecha elegida. Avisa cuántas franjas del destino ya tienen
+  clase: **esas se omiten** (nunca se pisan). Las copias arrancan sin cobrar (los pagos no
+  se copian) y en estado confirmada.
+- **Bloquear horarios / días**: se puede bloquear un día completo o franjas puntuales (con
+  motivo). Las franjas bloqueadas se ven distintas; es un **bloqueo blando**: avisa pero
+  permite cargar igual ("Cargar igual").
+- **Feriados argentinos**: se marcan automáticamente (calculados por año, incluidos los
+  movibles de Pascua). Es solo una marca visual: se puede dar clase igual. No incluye los
+  puentes turísticos ni los traslados por decreto.
+- **Duración variable**: 30/45/60/90/120 min (default 60). La agenda del día muestra el
+  rango horario ("10:00–11:30") y la vista semanal una barra proporcional a la duración.
+- **Estados de clase**: confirmada, tentativa, cancelada o ausente, distinguidos
+  visualmente. Una clase **cancelada no genera plata** (no cuenta deuda, cobro ni
+  facturación); las demás cuentan como siempre.
+- **Reprogramar (mover)**: "Mover" en la agenda del día (elegir día y hora) o **arrastrar**
+  la clase en la vista semanal. Se conservan alumnos, precio, descuentos y pagos (los
+  pagos atados a la clase se re-apuntan a la nueva franja).
+- **Huecos libres**: en la vista semanal, "Ver huecos" resalta las franjas libres (sin
+  clase ni bloqueo) para ubicar rápido un alumno nuevo.
+
 ## Plata: pagos, packs, gastos y recibos
 
 El estado **cobrado/pendiente ya no es un toggle** por clase: se **deriva de los pagos**
@@ -140,11 +167,11 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
   los archivos viejos v1 del prototipo. Importar **reemplaza** todos los datos actuales
   del dispositivo — la app pide confirmación antes de hacerlo.
 
-### Formato del archivo (v3)
+### Formato del archivo (v4)
 
 ```jsonc
 {
-  "version": 3,
+  "version": 4,
   "prices": { "grupal": 4000, "indiv": 12000 },
   "students": {
     "<id>": {
@@ -171,9 +198,16 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
             "discount": { "type": "fixed", "value": 1000 } }, // opcional: descuento puntual
           { "studentId": null, "name": "Invitado" }            // nombre suelto sin ficha
         ],
-        "price": 8000                           // precio de lista de la clase (sin `paid`)
+        "price": 8000,                          // precio de lista de la clase (sin `paid`)
+        "duration": 90,                         // v4, opcional (minutos; ausente = 60)
+        "state": "confirmada",                  // v4, opcional: confirmada|tentativa|cancelada|ausente
+        "seriesId": "<id>"                      // v4, opcional: pertenencia a una serie recurrente
       }
     }
+  },
+  "blocks": {                                   // v4: bloqueos de disponibilidad por día
+    "2026-6-21": { "fullDay": true, "reason": "Vacaciones" },   // día completo
+    "2026-6-22": { "hours": [7, 8], "reason": "Turno médico" }  // o franjas puntuales
   },
   "payments": {                                 // libro de pagos (plata que entró)
     "<id>": {
@@ -202,10 +236,10 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
 }
 ```
 
-Las "clases restantes" de un pack y el estado cobrado/pendiente de cada clase **no se
-guardan**: se derivan de los pagos y la asistencia (ver `src/lib/money.ts`).
+Las "clases restantes" de un pack, los feriados y el estado cobrado/pendiente de cada
+clase **no se guardan**: se derivan (ver `src/lib/money.ts` y `src/lib/holidays.ts`).
 
-### Compatibilidad con los formatos viejos (v1 → v2 → v3)
+### Compatibilidad con los formatos viejos (v1 → v2 → v3 → v4)
 
 Al **cargar** el localStorage o **importar** un archivo, la app migra en cadena y sin
 perder datos (`src/lib/migrate.ts`, idempotente):
@@ -217,6 +251,9 @@ perder datos (`src/lib/migrate.ts`, idempotente):
   Así los totales de cobrado/pendiente/facturación quedan **idénticos** a v2, y las clases
   antes cobradas se ven "Pagadas". Agrega los medios de pago y los libros (pagos/packs/
   gastos) vacíos.
+- **v3 → v4** → agrega `blocks: {}` y conserva `duration`/`state`/`seriesId` si vienen. No
+  toca nada más: las clases sin esos campos usan los defaults (60 min, confirmada), así los
+  totales y toda la lógica de plata quedan **idénticos** a v3.
 
 ## Decisiones tomadas
 
@@ -247,3 +284,13 @@ perder datos (`src/lib/migrate.ts`, idempotente):
   cuenta para el precio de la clase pero no genera deuda ni cobro.
 - **Los packs se consumen FIFO** (clase más vieja primero, desde la fecha de compra) y el
   monto se cobra al comprarlos (prepago); esas clases no se vuelven a cobrar.
+- **Modelo por franja horaria (v4)**: la agenda sigue siendo una clase por hora entera
+  (7–16). La duración es un dato de la clase que se refleja visualmente (rango horario +
+  barra proporcional), pero no convierte la grilla en una línea de tiempo libre.
+- **Las recurrencias se materializan**: generan clases reales con `seriesId` (no una regla
+  que se evalúa después). Más simple y coherente con el modelo por franja.
+- **Cancelada = sin plata; tentativa/ausente = cuentan**: solo la clase cancelada se
+  excluye de deuda, cobro y facturación. La "ausente" (no vino) se cobra igual.
+- **Bloqueos blandos**: bloquear un día/franja avisa pero permite cargar clase igual.
+- **Feriados**: solo los nacionales calculables (fijos + movibles de Pascua); no los
+  puentes turísticos ni los traslados por decreto. Es una marca, no un bloqueo.

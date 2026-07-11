@@ -18,6 +18,7 @@ import type {
 } from '../types';
 import { parseDayKey } from './date';
 import { applyDiscount } from './discount';
+import { isChargeable } from './classMeta';
 
 export type ClassPayStatus = 'pagada' | 'parcial' | 'impaga';
 /** Estado de una clase, o "sin-seguimiento" si no tiene participantes con ficha. */
@@ -135,6 +136,8 @@ export function computeLedger(data: AgendaData): Ledger {
   const partsByStudent: Record<string, Participation[]> = {};
   for (const [day, slots] of Object.entries(data.days)) {
     for (const [hourStr, entry] of Object.entries(slots)) {
+      // Las clases canceladas no generan plata (ni deuda ni cobro).
+      if (!isChargeable(entry)) continue;
       const hour = Number(hourStr);
       entry.participants.forEach((p, idx) => {
         if (!p.studentId || !data.students[p.studentId]) return;
@@ -340,6 +343,8 @@ function accumulate(data: AgendaData, ledger: Ledger, matches: (day: string) => 
   for (const [day, slots] of Object.entries(data.days)) {
     if (!matches(day)) continue;
     for (const [hourStr, entry] of Object.entries(slots)) {
+      // Las clases canceladas no cuentan en los totales.
+      if (!isChargeable(entry)) continue;
       const acc = ledger.byClass[classKey(day, Number(hourStr))];
       t.classes += 1;
       t.students += entry.participants.length;

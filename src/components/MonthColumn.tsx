@@ -4,6 +4,8 @@ import { WEEKDAY_NAMES } from '../lib/constants';
 import { formatCurrency } from '../lib/format';
 import { monthTotals, dayTotals, dayEntries, classStatus, STATUS_LABEL } from '../lib/money';
 import { classNames } from '../lib/students';
+import { isDayBlocked } from '../lib/classMeta';
+import { holidayName } from '../lib/holidays';
 
 interface MonthColumnProps {
   year: number;
@@ -28,16 +30,23 @@ export default function MonthColumn({ year, month, name, onOpenDay }: MonthColum
           const slots = data.days[key];
           const dTotal = dayTotals(data, ledger, key);
           const entries = dayEntries(slots);
+          const holiday = holidayName(key);
+          const blocked = isDayBlocked(data.blocks[key]);
 
           return (
             <button
               key={dayNum}
               className={`day-row${isToday(date) ? ' day-row--today' : ''}${
                 entries.length === 0 ? ' day-row--empty' : ''
-              }`}
+              }${holiday ? ' day-row--holiday' : ''}${blocked ? ' day-row--blocked' : ''}`}
               onClick={() => onOpenDay(key)}
+              title={holiday ? `Feriado: ${holiday}` : undefined}
             >
-              <span className="day-row__num">{dayNum}</span>
+              <span className="day-row__num">
+                {dayNum}
+                {holiday && <span className="day-row__holiday-dot" />}
+                {blocked && <span className="day-row__block-dot" />}
+              </span>
               <span className="day-row__dow">{WEEKDAY_NAMES[date.getDay()]}</span>
               <span className="day-row__bars">
                 {entries.map(({ hour, entry }) => {
