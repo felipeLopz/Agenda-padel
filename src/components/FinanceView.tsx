@@ -4,6 +4,7 @@ import { MONTH_NAMES } from '../lib/constants';
 import { formatCurrency } from '../lib/format';
 import { displayName } from '../lib/students';
 import CountUp from './CountUp';
+import { useSlideDirection } from '../hooks/useSlideDirection';
 import {
   incomeByMethod,
   monthProjection,
@@ -38,6 +39,7 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
   const toISO = `${year}-${pad2(month + 1)}-31`;
   const income = incomeByMethod(data, fromISO, toISO);
   const monthExpenses = expensesInPeriod(data, year, month);
+  const slideDir = useSlideDirection(year * 12 + month);
 
   return (
     <div className="finance-view">
@@ -63,7 +65,7 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
         </button>
       </div>
 
-      <div className="finance-grid">
+      <div className={`finance-grid period-slide period-slide--${slideDir}`} key={`${year}-${month}`}>
         {/* Proyección del mes */}
         <section className="finance-card">
           <h3>Proyección del mes</h3>

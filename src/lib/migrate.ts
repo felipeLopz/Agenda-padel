@@ -430,6 +430,7 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
     endHour: typeof rawSettings.endHour === 'number' ? rawSettings.endHour : DEFAULT_SETTINGS.endHour,
     theme: rawSettings.theme === 'light' ? 'light' : 'dark',
     lastExportAt: typeof rawSettings.lastExportAt === 'string' ? rawSettings.lastExportAt : undefined,
+    soundOnCollect: rawSettings.soundOnCollect === true,
   };
 
   const packs = normalizePacks(src.packs);

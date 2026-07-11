@@ -13,6 +13,7 @@ import type { PadelCategory, PadelRank, Student } from '../types';
 import StudentCard from './StudentCard';
 import StudentProfileModal from './StudentProfileModal';
 import StudentFormModal from './StudentFormModal';
+import EmptyState from './EmptyState';
 
 interface StudentsViewProps {
   onOpenDay: (day: string) => void;
@@ -114,13 +115,20 @@ export default function StudentsView({ onOpenDay }: StudentsViewProps) {
             onClick={() => setProfileId(s.id)}
           />
         ))}
-        {students.length === 0 && (
-          <p className="search-empty">
-            {Object.keys(data.students).length === 0
-              ? 'Todavía no hay alumnos. Creá el primero con "+ Nuevo alumno".'
-              : 'Ningún alumno coincide con los filtros.'}
-          </p>
-        )}
+        {students.length === 0 &&
+          (Object.keys(data.students).length === 0 ? (
+            <EmptyState
+              title="Todavía no tenés alumnos"
+              hint="Cargá tu primer alumno para empezar a armar las clases."
+              action={
+                <button className="btn btn--primary" onClick={() => setFormState({ student: null })}>
+                  + Nuevo alumno
+                </button>
+              }
+            />
+          ) : (
+            <p className="search-empty">Ningún alumno coincide con los filtros.</p>
+          ))}
       </div>
 
       {profileId && (

@@ -228,6 +228,8 @@ export interface Settings {
   theme?: 'dark' | 'light';
   /** Fecha ISO de la última exportación de respaldo (para el recordatorio). (v6) */
   lastExportAt?: string;
+  /** Sonido breve al cobrar una clase. Apagado por defecto. (Tanda 3 de efectos) */
+  soundOnCollect?: boolean;
 }
 
 export interface AgendaData {

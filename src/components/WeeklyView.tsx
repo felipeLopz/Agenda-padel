@@ -15,6 +15,7 @@ import {
   timeRange,
 } from '../lib/classMeta';
 import { holidayName } from '../lib/holidays';
+import { useSlideDirection } from '../hooks/useSlideDirection';
 import type { ClassEntry } from '../types';
 
 interface WeeklyViewProps {
@@ -37,6 +38,7 @@ export default function WeeklyView({
 }: WeeklyViewProps) {
   const { data, ledger, moveClass } = useAgenda();
   const monday = startOfWeek(anchor);
+  const slideDir = useSlideDirection(monday.getTime());
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const weekKeys = weekDays.map((d) => dayKey(d));
   // Franjas de la grilla: horario configurado + cualquier hora con clase en la semana.
@@ -85,7 +87,7 @@ export default function WeeklyView({
         </button>
       </div>
 
-      <div className="week-grid">
+      <div className={`week-grid period-slide period-slide--${slideDir}`} key={monday.getTime()}>
         <div className="week-grid__corner" />
         {weekDays.map((date) => {
           const key = dayKey(date);

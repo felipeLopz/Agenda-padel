@@ -15,6 +15,7 @@ import {
 import { downloadReportCSV, downloadReportPDF } from '../lib/report';
 import { HBarChart, LineChart, Donut, OccupancyBar } from './Charts';
 import CountUp from './CountUp';
+import { useSlideDirection } from '../hooks/useSlideDirection';
 
 interface StatsViewProps {
   /** Ir a la pestaña Caja (para el ranking de deudores completo). */
@@ -42,6 +43,7 @@ export default function StatsView({ onGoCaja }: StatsViewProps) {
   const [month, setMonth] = useState<number | null>(null); // null = todo el año
 
   const period: Period = { year, month };
+  const slideDir = useSlideDirection(year * 13 + (month ?? 12));
   const st = computeStats(data, ledger, period);
   const cmp = periodComparison(data, ledger, period);
   const income = monthlyIncome(data, ledger, year);
@@ -97,7 +99,7 @@ export default function StatsView({ onGoCaja }: StatsViewProps) {
 
       {/* Tarjetas de titulares con comparación. La `key` por período hace que los
           contadores vuelvan a subir y los gráficos se redibujen al cambiar de período. */}
-      <div className="stats-cards" key={`cards-${year}-${month}`}>
+      <div className={`stats-cards period-slide period-slide--${slideDir}`} key={`cards-${year}-${month}`}>
         <div className="stat-card">
           <span className="stat-card__label">Clases</span>
           <span className="stat-card__value">
@@ -135,7 +137,7 @@ export default function StatsView({ onGoCaja }: StatsViewProps) {
         </div>
       </div>
 
-      <div className="stats-grid" key={`grid-${year}-${month}`}>
+      <div className={`stats-grid period-slide period-slide--${slideDir}`} key={`grid-${year}-${month}`}>
         {/* Grupal vs individual */}
         <section className="finance-card">
           <h3>Grupales vs individuales</h3>

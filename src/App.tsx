@@ -22,11 +22,16 @@ import CopyWeekModal from './components/CopyWeekModal';
 import BlockDayModal from './components/BlockDayModal';
 import UndoToast from './components/UndoToast';
 import ExportReminder from './components/ExportReminder';
+import Skeletons from './components/Skeletons';
+import SyncCheck from './components/SyncCheck';
+import Spinner from './components/Spinner';
+import { useAgenda } from './state/AgendaContext';
 import { startOfWeek } from './lib/date';
 import type { ClassEntry, ClassFormTarget, Student } from './types';
 
 /** Orquesta qué vista y qué modal está abierto; el estado de datos vive en AgendaContext. */
 function AppShell() {
+  const { initialLoading, data } = useAgenda();
   const [view, setView] = useState<ViewMode>('anual');
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [weekAnchor, setWeekAnchor] = useState(() => new Date());
@@ -66,20 +71,27 @@ function AppShell() {
       <ExportReminder />
 
       <main className="app__content">
-        {view === 'anual' && <AnnualView year={year} onOpenDay={setOpenDay} />}
-        {view === 'semanal' && (
-          <WeeklyView
-            anchor={weekAnchor}
-            onChangeAnchor={setWeekAnchor}
-            onOpenNewClass={openNewClass}
-            onOpenEditClass={openEditClass}
-            onOpenCopyWeek={(fromMonday) => setCopyWeekMonday(fromMonday)}
-            onBlockDay={(day) => setBlockDayKey(day)}
-          />
+        {initialLoading && Object.keys(data.days).length === 0 && Object.keys(data.students).length === 0 ? (
+          <Skeletons />
+        ) : (
+          // `key={view}` remonta el contenido al cambiar de pestaña → transición suave.
+          <div className="view-anim" key={view}>
+            {view === 'anual' && <AnnualView year={year} onOpenDay={setOpenDay} />}
+            {view === 'semanal' && (
+              <WeeklyView
+                anchor={weekAnchor}
+                onChangeAnchor={setWeekAnchor}
+                onOpenNewClass={openNewClass}
+                onOpenEditClass={openEditClass}
+                onOpenCopyWeek={(fromMonday) => setCopyWeekMonday(fromMonday)}
+                onBlockDay={(day) => setBlockDayKey(day)}
+              />
+            )}
+            {view === 'alumnos' && <StudentsView onOpenDay={setOpenDay} />}
+            {view === 'caja' && <FinanceView onOpenStudent={setProfileId} />}
+            {view === 'stats' && <StatsView onGoCaja={() => setView('caja')} />}
+          </div>
         )}
-        {view === 'alumnos' && <StudentsView onOpenDay={setOpenDay} />}
-        {view === 'caja' && <FinanceView onOpenStudent={setProfileId} />}
-        {view === 'stats' && <StatsView onGoCaja={() => setView('caja')} />}
       </main>
 
       {openDay && (
@@ -148,6 +160,7 @@ function AppShell() {
       {blockDayKey && <BlockDayModal day={blockDayKey} onClose={() => setBlockDayKey(null)} />}
 
       <UndoToast />
+      <SyncCheck />
     </div>
   );
 }
@@ -171,8 +184,7 @@ function Root() {
     return (
       <div className="auth-screen">
         <div className="auth-card auth-card--loading">
-          <span className="auth-card__logo">🎾</span>
-          <p className="auth-card__sub">Cargando…</p>
+          <Spinner label="Cargando…" />
         </div>
       </div>
     );

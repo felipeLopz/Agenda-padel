@@ -4,6 +4,7 @@ import { formatCurrency } from '../lib/format';
 import { yearTotals } from '../lib/money';
 import MonthColumn from './MonthColumn';
 import CountUp from './CountUp';
+import { useSlideDirection } from '../hooks/useSlideDirection';
 
 interface AnnualViewProps {
   year: number;
@@ -14,6 +15,7 @@ interface AnnualViewProps {
 export default function AnnualView({ year, onOpenDay }: AnnualViewProps) {
   const { data, ledger } = useAgenda();
   const totals = yearTotals(data, ledger, year);
+  const slideDir = useSlideDirection(year);
 
   return (
     <div className="annual-view">
@@ -50,7 +52,7 @@ export default function AnnualView({ year, onOpenDay }: AnnualViewProps) {
         </div>
       </div>
 
-      <div className="annual-view__months">
+      <div className={`annual-view__months period-slide period-slide--${slideDir}`} key={year}>
         {MONTH_NAMES.map((name, month) => (
           <MonthColumn key={month} year={year} month={month} name={name} onOpenDay={onOpenDay} />
         ))}

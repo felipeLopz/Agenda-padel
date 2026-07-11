@@ -28,6 +28,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [workDays, setWorkDays] = useState<number[]>(data.settings.workDays ?? [...DEFAULT_WORKDAYS]);
   const [startH, setStartH] = useState(data.settings.startHour ?? 7);
   const [endH, setEndH] = useState(data.settings.endHour ?? 16);
+  // Sonido al cobrar (apagado por defecto). (Tanda 3 de efectos)
+  const [sound, setSound] = useState(data.settings.soundOnCollect ?? false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function toggleWorkDay(d: number) {
@@ -71,6 +73,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       workDays: workDays.length ? [...workDays].sort((a, b) => a - b) : [...DEFAULT_WORKDAYS],
       startHour: startH,
       endHour: end,
+      soundOnCollect: sound,
     });
     onClose();
   }
@@ -196,6 +199,17 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               </select>
             </div>
           </div>
+        </div>
+
+        <hr className="settings__divider" />
+
+        <div className="settings__prefs">
+          <h3>Preferencias</h3>
+          <label className="checkbox-row">
+            <input type="checkbox" checked={sound} onChange={(e) => setSound(e.target.checked)} />
+            Sonido breve al cobrar una clase
+          </label>
+          <p className="settings__hint">Apagado por defecto. Un “tilín” corto cuando marcás una clase como cobrada.</p>
         </div>
 
         <div className="class-form__actions">

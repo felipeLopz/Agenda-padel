@@ -37,6 +37,8 @@ import {
   setLocalOwnerId,
   setLocalUpdatedAt,
 } from '../lib/cloudSync';
+import { haptic, playCollectSound } from '../lib/feedback';
+import { prefersReducedMotion } from '../lib/motion';
 
 /** Datos para registrar un pago manual (los ids/fechas se completan solos). */
 export interface NewPaymentInput {
@@ -107,6 +109,10 @@ interface AgendaContextValue {
   dismissUndo: () => void;
   exportData: () => void;
   importData: (file: File) => Promise<void>;
+  /** true mientras se baja la nube por primera vez al iniciar sesión (para skeletons). */
+  initialLoading: boolean;
+  /** Marca de tiempo del último guardado exitoso en la nube (para el check "Guardado"). */
+  syncedAt: number;
 }
 
 const AgendaContext = createContext<AgendaContextValue | null>(null);
@@ -122,6 +128,11 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
   const [data, dispatch] = useReducer(agendaReducer, undefined, loadData);
   // Snapshot para "deshacer" (1 nivel): estado previo a la última acción importante.
   const [undoState, setUndoState] = useState<{ snapshot: AgendaData; label: string; at: number } | null>(null);
+  // Estado visual (Tanda 3): carga inicial de la nube y último guardado exitoso.
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [syncedAt, setSyncedAt] = useState(0);
+  // Tema anterior, para animar SOLO el cambio de tema (no el arranque).
+  const prevTheme = useRef<string | null>(null);
 
   // --- Sincronización en la nube (Tanda 6) ---
   const { user } = useAuth();
@@ -154,7 +165,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     if (!isSupabaseConfigured || !userId || !hasUnsynced.current) return;
     const updatedAt = latestUpdatedAt.current;
     const ok = await pushRemote(userId, dataRef.current, updatedAt);
-    if (ok) setLocalOwnerId(userId);
+    if (ok) {
+      setLocalOwnerId(userId);
+      setSyncedAt(Date.now());
+    }
     // Solo se marca como sincronizado si mientras subía NO entró un cambio más nuevo.
     if (ok && latestUpdatedAt.current === updatedAt) hasUnsynced.current = false;
   }, [userId]);
@@ -193,14 +207,17 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isSupabaseConfigured || !userId) {
       syncReady.current = true;
+      setInitialLoading(false);
       return;
     }
     if (syncedForUser.current === userId) {
       syncReady.current = true; // ya sincronizado para este usuario: no repetir
+      setInitialLoading(false);
       return;
     }
     let cancelled = false;
     syncReady.current = false;
+    setInitialLoading(true);
     (async () => {
       const decision = await decideInitialSync(userId, dataRef.current);
       if (cancelled) return;
@@ -219,6 +236,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           latestUpdatedAt.current = decision.updatedAt;
           hasUnsynced.current = false;
           await pushRemote(userId, dataRef.current, decision.updatedAt);
+          setSyncedAt(Date.now());
           break;
         case 'noop': // todo vacío: solo se marca el dueño de la caché
           setLocalOwnerId(userId);
@@ -229,6 +247,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       }
       syncReady.current = true;
       syncedForUser.current = userId; // marca: este usuario ya hizo su sync inicial
+      setInitialLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -264,9 +283,16 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Aplica el tema (oscuro/claro) al documento.
+  // Aplica el tema (oscuro/claro) al documento. Al CAMBIAR el tema (no al arrancar) hace
+  // una transición gradual de colores, en vez de un flash.
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', data.settings.theme ?? 'dark');
+    const theme = data.settings.theme ?? 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    if (prevTheme.current !== null && prevTheme.current !== theme && !prefersReducedMotion()) {
+      document.documentElement.classList.add('theme-transition');
+      window.setTimeout(() => document.documentElement.classList.remove('theme-transition'), 360);
+    }
+    prevTheme.current = theme;
   }, [data.settings.theme]);
 
   // Recalcula todo el estado financiero derivado cuando cambian los datos.
@@ -296,14 +322,18 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     return {
       data,
       ledger,
+      initialLoading,
+      syncedAt,
       setPrices: (prices) => dispatch({ type: 'SET_PRICES', payload: prices }),
       upsertClass: (day, hour, entry) => dispatch({ type: 'UPSERT_CLASS', payload: { day, hour, entry } }),
       deleteClass: (day, hour) => {
         capture('Clase borrada');
+        haptic();
         dispatch({ type: 'DELETE_CLASS', payload: { day, hour } });
       },
       removeParticipant: (day, hour, index) => {
         capture('Alumno quitado del turno');
+        haptic();
         dispatch({ type: 'REMOVE_PARTICIPANT', payload: { day, hour, index } });
       },
       upsertStudent: (student) => dispatch({ type: 'UPSERT_STUDENT', payload: student }),
@@ -326,6 +356,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         if (!entry) return;
         const method = data.settings.defaultMethodId;
         const date = todayISO();
+        let didCollect = false;
         for (const p of entry.participants) {
           if (!p.studentId) continue;
           const part = ledger.byStudent[p.studentId]?.participations.find(
@@ -347,6 +378,12 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
               classRef: { day, hour },
             },
           });
+          didCollect = true;
+        }
+        // Feedback opcional al cobrar: sonido (si está activado) + vibración sutil.
+        if (didCollect) {
+          playCollectSound(data.settings.soundOnCollect ?? false);
+          haptic();
         }
       },
 
@@ -503,7 +540,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'LOAD', payload: imported });
       },
     };
-  }, [data, ledger, undoState]);
+  }, [data, ledger, undoState, initialLoading, syncedAt]);
 
   return <AgendaContext.Provider value={value}>{children}</AgendaContext.Provider>;
 }

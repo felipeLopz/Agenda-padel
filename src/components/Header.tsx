@@ -1,6 +1,20 @@
 import { useAgenda } from '../state/AgendaContext';
+import { useAuth } from '../state/AuthContext';
 
 export type ViewMode = 'anual' | 'semanal' | 'alumnos' | 'caja' | 'stats';
+
+/** Nombre "lindo" a partir del email (primer token de letras), o vacío si no se puede. */
+function nameFromEmail(email?: string | null): string {
+  if (!email) return '';
+  const token = email.split('@')[0].split(/[^a-záéíóúñ]+/i)[0] ?? '';
+  return token.length >= 2 ? token.charAt(0).toUpperCase() + token.slice(1).toLowerCase() : '';
+}
+
+/** Saludo según la hora del día. */
+function greetingFor(date: Date): string {
+  const h = date.getHours();
+  return h < 12 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches';
+}
 
 interface HeaderProps {
   view: ViewMode;
@@ -14,14 +28,20 @@ interface HeaderProps {
 /** Barra superior: marca, tabs de vista, selector de año y acciones. */
 export default function Header({ view, onChangeView, year, onChangeYear, onOpenSearch, onOpenSettings }: HeaderProps) {
   const { data, setTheme } = useAgenda();
+  const { user } = useAuth();
   const theme = data.settings.theme ?? 'dark';
+  const name = nameFromEmail(user?.email);
+  const greeting = name ? `${greetingFor(new Date())}, ${name}` : greetingFor(new Date());
   return (
     <header className="app-header">
       <div className="app-header__brand">
         <span className="app-header__logo" aria-hidden>
           🎾
         </span>
-        <h1>Agenda de Pádel</h1>
+        <div className="app-header__title">
+          <h1>Agenda de Pádel</h1>
+          <span className="app-header__greeting">{greeting}</span>
+        </div>
       </div>
 
       <div className="app-header__tabs">

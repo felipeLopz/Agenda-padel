@@ -162,18 +162,18 @@ export default function DayAgendaModal({
                       Deshacer
                     </button>
                   )}
-                  <button className="icon-btn" onClick={() => onMoveClass(hour)} aria-label="Mover" title="Mover">
+                  <button className="icon-btn has-tip" onClick={() => onMoveClass(hour)} aria-label="Mover" data-tip="Mover">
                     ↦
                   </button>
                   <button
-                    className="icon-btn"
+                    className="icon-btn has-tip"
                     onClick={() => onDuplicateClass(hour)}
                     aria-label="Duplicar"
-                    title="Duplicar"
+                    data-tip="Duplicar"
                   >
                     ⧉
                   </button>
-                  <button className="icon-btn" onClick={() => onEditClass(hour, entry)} aria-label="Editar">
+                  <button className="icon-btn has-tip" onClick={() => onEditClass(hour, entry)} aria-label="Editar" data-tip="Editar">
                     ✎
                   </button>
                   <button

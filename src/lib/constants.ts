@@ -81,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   startHour: 7,
   endHour: 16,
   theme: 'dark',
+  soundOnCollect: false,
 };
 
 /** Días desde la última exportación para recordar un backup. */

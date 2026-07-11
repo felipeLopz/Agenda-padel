@@ -2850,6 +2850,331 @@ textarea:focus {
   animation: pulseToday 2.4s ease-in-out infinite;
 }
 
+/* =========================================================================
+   Efectos — Tanda 3: transiciones, carga y detalles finos.
+   ========================================================================= */
+
+/* 1) Transición al cambiar de pestaña. */
+.view-anim {
+  animation: viewIn 0.2s ease;
+}
+@keyframes viewIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 2) Apertura/cierre de modales (fade + scale en escritorio; subida en celular). */
+.modal-overlay {
+  animation: overlayIn 0.18s ease;
+}
+.modal-overlay--closing {
+  animation: overlayOut 0.18s ease forwards;
+}
+.modal {
+  animation: modalIn 0.2s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.modal--closing {
+  animation: modalOut 0.18s ease forwards;
+}
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes overlayOut {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes modalOut {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes modalUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes modalDown {
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+@media (max-width: 640px) {
+  .modal {
+    animation: modalUp 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .modal--closing {
+    animation: modalDown 0.2s ease forwards;
+  }
+}
+
+/* 3) Deslizamiento al cambiar de período (izquierda / derecha). */
+.period-slide--right {
+  animation: slideFromRight 0.22s ease;
+}
+.period-slide--left {
+  animation: slideFromLeft 0.22s ease;
+}
+@keyframes slideFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slideFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 4) Transición gradual del tema (la activa el JS SOLO al cambiar de tema). */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, fill 0.3s ease,
+    stroke 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+/* 5) Skeletons de carga (tarjetas grises con brillo). */
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+.skeletons__spinner {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(120, 140, 220, 0.12), transparent);
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+.skeleton--bar {
+  height: 54px;
+}
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.skeleton--card {
+  height: 92px;
+}
+
+/* 6) Spinner temático: pelotita de pádel que rebota. */
+.padel-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.padel-spinner__ball {
+  font-size: 30px;
+  line-height: 1;
+  display: inline-block;
+  animation: ballBounce 0.55s cubic-bezier(0.5, 0, 0.5, 1) infinite alternate;
+}
+.padel-spinner__label {
+  font-size: 13px;
+  color: var(--muted);
+}
+@keyframes ballBounce {
+  from {
+    transform: translateY(0) scaleY(1);
+  }
+  to {
+    transform: translateY(-14px) scaleY(1.06);
+  }
+}
+
+/* 7) Estados vacíos con ilustración. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 34px 16px;
+  color: var(--muted);
+}
+.empty-state__art {
+  width: 84px;
+  height: 84px;
+  font-size: 54px;
+  opacity: 0.9;
+}
+.empty-state__svg {
+  width: 100%;
+  height: 100%;
+}
+.empty-state__title {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.empty-state__hint {
+  margin: 0;
+  font-size: 13px;
+  max-width: 320px;
+}
+.empty-state__action {
+  margin-top: 6px;
+}
+.students-view__list .empty-state {
+  grid-column: 1 / -1;
+}
+
+/* 8) Anillo suave de color al enfocar campos de texto. */
+input,
+select,
+textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: 0 0 0 3px rgba(47, 107, 255, 0.18);
+}
+
+/* 9) Check verde discreto de "guardado en la nube". */
+.sync-check {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-elevated);
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  animation: syncCheckIn 0.25s ease;
+}
+.sync-check__icon {
+  font-weight: 900;
+}
+@keyframes syncCheckIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 10) Saludo por hora en el encabezado. */
+.app-header__title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.app-header__greeting {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* 11) Tooltips suaves sobre los íconos de acción (aparecen con fade). */
+.has-tip {
+  position: relative;
+}
+.has-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--bg-elevated);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 50;
+}
+.has-tip:hover::after,
+.has-tip:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* 12) Micro-movimiento sutil de los íconos al pasar el cursor. */
+.icon-btn:hover {
+  transform: scale(1.12);
+}
+.icon-btn:active {
+  transform: scale(0.95);
+}
+
 /* Respeta prefers-reduced-motion: reduce todo al mínimo para no marear. */
 @media (prefers-reduced-motion: reduce) {
   *,
