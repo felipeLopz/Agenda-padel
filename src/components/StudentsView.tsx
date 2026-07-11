@@ -3,11 +3,13 @@ import { useAgenda } from '../state/AgendaContext';
 import {
   countStudentClasses,
   displayName,
-  LEVELS,
-  LEVEL_LABELS,
+  PADEL_CATEGORIES,
+  CATEGORY_LABELS,
+  PADEL_RANKS,
+  RANK_LABELS,
   normalizeName,
 } from '../lib/students';
-import type { Student, StudentLevel } from '../types';
+import type { PadelCategory, PadelRank, Student } from '../types';
 import StudentCard from './StudentCard';
 import StudentProfileModal from './StudentProfileModal';
 import StudentFormModal from './StudentFormModal';
@@ -17,14 +19,16 @@ interface StudentsViewProps {
 }
 
 type StatusFilter = 'activos' | 'inactivos' | 'todos';
-type LevelFilter = 'todos' | StudentLevel;
+type CategoryFilter = 'todos' | PadelCategory;
+type RankFilter = 'todos' | PadelRank;
 
 /** Sección "Alumnos": lista, filtros y acceso a fichas. */
 export default function StudentsView({ onOpenDay }: StudentsViewProps) {
   const { data } = useAgenda();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('activos');
-  const [level, setLevel] = useState<LevelFilter>('todos');
+  const [catFilter, setCatFilter] = useState<CategoryFilter>('todos');
+  const [rankFilter, setRankFilter] = useState<RankFilter>('todos');
 
   const [profileId, setProfileId] = useState<string | null>(null);
   // formState: null = cerrado; { student } = editando (o null para alta).
@@ -36,7 +40,8 @@ export default function StudentsView({ onOpenDay }: StudentsViewProps) {
       .filter((s) => {
         if (status === 'activos' && !s.active) return false;
         if (status === 'inactivos' && s.active) return false;
-        if (level !== 'todos' && s.level !== level) return false;
+        if (catFilter !== 'todos' && s.category !== catFilter) return false;
+        if (rankFilter !== 'todos' && s.rank !== rankFilter) return false;
         if (q) {
           const inName = normalizeName(displayName(s)).includes(q);
           const inTags = s.tags.some((t) => normalizeName(t).includes(q));
@@ -45,7 +50,7 @@ export default function StudentsView({ onOpenDay }: StudentsViewProps) {
         return true;
       })
       .sort((a, b) => displayName(a).localeCompare(displayName(b), 'es'));
-  }, [data.students, query, status, level]);
+  }, [data.students, query, status, catFilter, rankFilter]);
 
   return (
     <div className="students-view">
@@ -74,23 +79,30 @@ export default function StudentsView({ onOpenDay }: StudentsViewProps) {
             </button>
           ))}
         </div>
-        <div className="segmented segmented--wrap">
-          <button
-            className={`segmented__option${level === 'todos' ? ' segmented__option--active' : ''}`}
-            onClick={() => setLevel('todos')}
-          >
-            Todos
-          </button>
-          {LEVELS.map((lv) => (
-            <button
-              key={lv}
-              className={`segmented__option${level === lv ? ' segmented__option--active' : ''}`}
-              onClick={() => setLevel(lv)}
-            >
-              {LEVEL_LABELS[lv]}
-            </button>
+        <select
+          className="select"
+          value={catFilter}
+          onChange={(e) => setCatFilter(e.target.value as CategoryFilter)}
+        >
+          <option value="todos">Toda categoría</option>
+          {PADEL_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              Cat. {CATEGORY_LABELS[c]}
+            </option>
           ))}
-        </div>
+        </select>
+        <select
+          className="select"
+          value={rankFilter}
+          onChange={(e) => setRankFilter(e.target.value as RankFilter)}
+        >
+          <option value="todos">Todo nivel</option>
+          {PADEL_RANKS.map((r) => (
+            <option key={r} value={r}>
+              Nivel {RANK_LABELS[r]}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="students-view__list">

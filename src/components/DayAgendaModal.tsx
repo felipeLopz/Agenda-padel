@@ -41,7 +41,8 @@ export default function DayAgendaModal({
   onDuplicateClass,
   onBlockDay,
 }: DayAgendaModalProps) {
-  const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass } = useAgenda();
+  const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant, clearClassParticipants } =
+    useAgenda();
   const date = parseDayKey(day);
   const slots = data.days[day];
   const totals = dayTotals(data, ledger, day);
@@ -219,9 +220,31 @@ export default function DayAgendaModal({
                             Pago
                           </button>
                         )}
+                        <button
+                          className="student-line__remove"
+                          onClick={() => {
+                            if (confirm(`¿Sacar a ${participantName(p, data.students)} de este turno?`))
+                              removeParticipant(day, hour, idx);
+                          }}
+                          aria-label="Sacar del turno"
+                          title="Sacar del turno"
+                        >
+                          ✕
+                        </button>
                       </div>
                     );
                   })}
+                  {entry.participants.length > 1 && (
+                    <button
+                      className="btn btn--tiny btn--ghost day-slot__clear"
+                      onClick={() => {
+                        if (confirm('¿Sacar a TODOS los alumnos de este turno? El turno queda libre.'))
+                          clearClassParticipants(day, hour);
+                      }}
+                    >
+                      Vaciar grupo (liberar turno)
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="day-slot__students">

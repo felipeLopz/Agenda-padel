@@ -828,23 +828,23 @@ button {
   flex: 1 1 auto;
 }
 
-/* Badges de nivel (reusa el estilo .badge). */
-.badge--level-principiante {
-  background: rgba(139, 150, 201, 0.2);
-  color: var(--muted);
-}
-
-.badge--level-intermedio {
+/* Badges de categoría y nivel de pádel (reusan el estilo .badge). (v7) */
+.badge--cat {
   background: rgba(47, 107, 255, 0.18);
   color: var(--blue-light);
 }
 
-.badge--level-avanzado {
-  background: rgba(255, 138, 61, 0.18);
-  color: var(--orange-light);
+.badge--rank-baja {
+  background: rgba(139, 150, 201, 0.2);
+  color: var(--muted);
 }
 
-.badge--level-competicion {
+.badge--rank-media {
+  background: rgba(245, 166, 35, 0.18);
+  color: var(--amber);
+}
+
+.badge--rank-alta {
   background: rgba(46, 204, 113, 0.18);
   color: var(--green);
 }
@@ -1101,8 +1101,21 @@ button {
   gap: 8px;
 }
 
+/* Inputs de "agregar" (objetivos, etiquetas, medios de pago): usan el tema para que
+   el texto y el placeholder se lean bien en claro y oscuro (antes quedaban invisibles). */
 .tag-editor__input input {
   flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.tag-editor__input input:focus {
+  outline: none;
+  border-color: var(--blue-light);
 }
 
 .tag-chip {
@@ -2534,4 +2547,37 @@ button {
   border: 1px solid rgba(47, 107, 255, 0.3);
   border-radius: 8px;
   padding: 9px 11px;
+}
+
+/* -------------------------------------------------------------------------
+   Ajustes v7 — categorías/nivel (filtros) y quitar alumno del turno
+   ------------------------------------------------------------------------- */
+
+/* Selects de filtro en la lista de alumnos (categoría / nivel). */
+.students-view__filters .select {
+  width: auto;
+  flex: 1 1 150px;
+}
+
+/* Botón "✕" para sacar un alumno de un turno (en la agenda del día). */
+.student-line__remove {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.student-line__remove:hover {
+  color: var(--danger);
+  background: rgba(255, 92, 108, 0.12);
+}
+
+/* Botón "Vaciar grupo" (libera el turno). */
+.day-slot__clear {
+  align-self: flex-start;
+  margin-top: 6px;
 }

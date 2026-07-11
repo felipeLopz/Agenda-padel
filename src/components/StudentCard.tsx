@@ -1,4 +1,4 @@
-import { displayName, LEVEL_LABELS } from '../lib/students';
+import { displayName, CATEGORY_LABELS, RANK_LABELS } from '../lib/students';
 import type { Student } from '../types';
 
 interface StudentCardProps {
@@ -24,7 +24,8 @@ export default function StudentCard({ student, classes, onClick }: StudentCardPr
       <div className="student-card__info">
         <span className="student-card__name">{displayName(student)}</span>
         <span className="student-card__meta">
-          <span className={`badge badge--level-${student.level}`}>{LEVEL_LABELS[student.level]}</span>
+          {student.category && <span className="badge badge--cat">{CATEGORY_LABELS[student.category]}</span>}
+          {student.rank && <span className={`badge badge--rank-${student.rank}`}>{RANK_LABELS[student.rank]}</span>}
           <span className="student-card__classes">{classes} clase{classes === 1 ? '' : 's'}</span>
         </span>
       </div>

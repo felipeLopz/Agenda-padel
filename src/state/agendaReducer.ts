@@ -23,6 +23,8 @@ export type AgendaAction =
   | { type: 'SET_PRICES'; payload: Prices }
   | { type: 'UPSERT_CLASS'; payload: { day: string; hour: number; entry: ClassEntry } }
   | { type: 'DELETE_CLASS'; payload: { day: string; hour: number } }
+  | { type: 'REMOVE_PARTICIPANT'; payload: { day: string; hour: number; index: number } }
+  | { type: 'CLEAR_PARTICIPANTS'; payload: { day: string; hour: number } }
   | { type: 'ADD_CLASSES'; payload: { entries: PlacedClass[] } }
   | { type: 'MOVE_CLASS'; payload: { from: { day: string; hour: number }; to: { day: string; hour: number } } }
   | { type: 'DELETE_SERIES'; payload: { seriesId: string } }
@@ -48,6 +50,28 @@ function without<T>(record: Record<string, T>, id: string): Record<string, T> {
   return next;
 }
 
+/**
+ * Desliga (quita el `classRef`) los pagos atados a una clase. Si se pasa `studentId`,
+ * solo los de ese alumno; si es null, los de todos. El pago sigue existiendo (la plata
+ * NO se pierde): pasa a crédito libre que se aplica FIFO a lo que el alumno adeuda.
+ */
+function detachClassPayments(
+  payments: Record<string, Payment>,
+  day: string,
+  hour: number,
+  studentId: string | null
+): Record<string, Payment> {
+  let changed = false;
+  const next: Record<string, Payment> = { ...payments };
+  for (const [id, pay] of Object.entries(next)) {
+    if (!pay.classRef || pay.classRef.day !== day || pay.classRef.hour !== hour) continue;
+    if (studentId !== null && pay.studentId !== studentId) continue;
+    next[id] = { ...pay, classRef: undefined };
+    changed = true;
+  }
+  return changed ? next : payments;
+}
+
 export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaData {
   switch (action.type) {
     case 'LOAD':
@@ -71,6 +95,53 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
       if (Object.keys(daySlots).length === 0) delete days[day];
       else days[day] = daySlots;
       return { ...state, days };
+    }
+
+    case 'REMOVE_PARTICIPANT': {
+      // Saca a un alumno puntual de una clase. Si es grupal, se reduce el precio en
+      // proporción para que la parte de cada alumno que queda NO cambie (precio ÷ n se
+      // mantiene). Si no queda nadie, se libera el turno (se borra la clase).
+      const { day, hour, index } = action.payload;
+      const slots = state.days[day];
+      const entry = slots?.[String(hour)];
+      if (!entry) return state;
+      const removed = entry.participants[index];
+      if (!removed) return state;
+      const nextParticipants = entry.participants.filter((_, i) => i !== index);
+
+      let days: AgendaData['days'];
+      if (nextParticipants.length === 0) {
+        // Turno libre: se borra la clase (el modelo no guarda clases sin alumnos).
+        const daySlots = { ...slots };
+        delete daySlots[String(hour)];
+        days = { ...state.days };
+        if (Object.keys(daySlots).length === 0) delete days[day];
+        else days[day] = daySlots;
+      } else {
+        const oldLen = entry.participants.length;
+        const nextPrice =
+          entry.type === 'grupal' ? Math.round((entry.price * nextParticipants.length) / oldLen) : entry.price;
+        const nextEntry: ClassEntry = { ...entry, participants: nextParticipants, price: nextPrice };
+        days = { ...state.days, [day]: { ...slots, [String(hour)]: nextEntry } };
+      }
+
+      const payments = detachClassPayments(state.payments, day, hour, removed.studentId);
+      return { ...state, days, payments };
+    }
+
+    case 'CLEAR_PARTICIPANTS': {
+      // Saca a TODOS del turno: se libera (se borra la clase) y se desligan los pagos
+      // atados a esa clase (de cualquier alumno), para no dejar referencias colgadas.
+      const { day, hour } = action.payload;
+      const slots = state.days[day];
+      if (!slots?.[String(hour)]) return state;
+      const daySlots = { ...slots };
+      delete daySlots[String(hour)];
+      const days = { ...state.days };
+      if (Object.keys(daySlots).length === 0) delete days[day];
+      else days[day] = daySlots;
+      const payments = detachClassPayments(state.payments, day, hour, null);
+      return { ...state, days, payments };
     }
 
     case 'ADD_CLASSES': {

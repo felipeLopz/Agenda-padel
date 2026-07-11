@@ -9,8 +9,14 @@
 /** Grupal: varios alumnos, se cobra por alumno. Individual: un solo alumno, precio por clase. */
 export type ClassType = 'grupal' | 'indiv';
 
-/** Nivel / categoría del alumno. */
+/** Nivel viejo del alumno (v6 y anteriores). Se conserva SOLO para migrar a v7. */
 export type StudentLevel = 'principiante' | 'intermedio' | 'avanzado' | 'competicion';
+
+/** Categoría de pádel del alumno (1ra = la más alta … 8va). Campo manual (v7). */
+export type PadelCategory = '1ra' | '2da' | '3ra' | '4ta' | '5ta' | '6ta' | '7ma' | '8va';
+
+/** Nivel dentro de la categoría, elegido a mano por el profe (v7). */
+export type PadelRank = 'baja' | 'media' | 'alta';
 
 /**
  * Descuento: porcentaje (0..100) o monto fijo en pesos.
@@ -64,7 +70,10 @@ export interface Student {
   photo?: string;
   /** Teléfono para el link de WhatsApp. */
   phone?: string;
-  level: StudentLevel;
+  /** Categoría de pádel (1ra..8va). Opcional: el profe la carga a mano. (v7) */
+  category?: PadelCategory;
+  /** Nivel dentro de la categoría (baja/media/alta). Opcional, manual. (v7) */
+  rank?: PadelRank;
   /** Cumpleaños en formato "YYYY-MM-DD" (el que usa <input type="date">). */
   birthday?: string;
   /** Notas privadas del profesor (texto libre). */

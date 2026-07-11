@@ -3,9 +3,9 @@ import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { newId } from '../lib/id';
 import { fileToCompressedDataURL } from '../lib/image';
-import { LEVELS, LEVEL_LABELS } from '../lib/students';
+import { PADEL_CATEGORIES, CATEGORY_LABELS, PADEL_RANKS, RANK_LABELS } from '../lib/students';
 import DiscountEditor from './DiscountEditor';
-import type { Discount, Student, StudentLevel } from '../types';
+import type { Discount, PadelCategory, PadelRank, Student } from '../types';
 
 interface StudentFormModalProps {
   /** Ficha a editar; null para alta. */
@@ -22,7 +22,9 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
   const [firstName, setFirstName] = useState(student?.firstName ?? '');
   const [lastName, setLastName] = useState(student?.lastName ?? '');
   const [phone, setPhone] = useState(student?.phone ?? '');
-  const [level, setLevel] = useState<StudentLevel>(student?.level ?? 'principiante');
+  // Categoría y nivel son dos campos INDEPENDIENTES, ambos opcionales (v7).
+  const [category, setCategory] = useState<PadelCategory | ''>(student?.category ?? '');
+  const [rank, setRank] = useState<PadelRank | ''>(student?.rank ?? '');
   const [birthday, setBirthday] = useState(student?.birthday ?? '');
   const [notes, setNotes] = useState(student?.notes ?? '');
   const [photo, setPhoto] = useState<string | undefined>(student?.photo);
@@ -63,7 +65,8 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: phone.trim() || undefined,
-      level,
+      category: category || undefined,
+      rank: rank || undefined,
       birthday: birthday || undefined,
       notes: notes.trim() || undefined,
       photo,
@@ -131,19 +134,32 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
           />
         </div>
 
-        <div className="class-form__row">
-          <label>Nivel</label>
-          <div className="segmented segmented--wrap">
-            {LEVELS.map((lv) => (
-              <button
-                key={lv}
-                type="button"
-                className={`segmented__option${level === lv ? ' segmented__option--active' : ''}`}
-                onClick={() => setLevel(lv)}
-              >
-                {LEVEL_LABELS[lv]}
-              </button>
-            ))}
+        <div className="class-form__row class-form__row--split">
+          <div>
+            <label>Categoría</label>
+            <select
+              className="select"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as PadelCategory | '')}
+            >
+              <option value="">Sin categoría</option>
+              {PADEL_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Nivel</label>
+            <select className="select" value={rank} onChange={(e) => setRank(e.target.value as PadelRank | '')}>
+              <option value="">Sin nivel</option>
+              {PADEL_RANKS.map((r) => (
+                <option key={r} value={r}>
+                  {RANK_LABELS[r]}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

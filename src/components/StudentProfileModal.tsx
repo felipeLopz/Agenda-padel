@@ -4,7 +4,7 @@ import { useAgenda } from '../state/AgendaContext';
 import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { WEEKDAY_NAMES } from '../lib/constants';
-import { displayName, LEVEL_LABELS, whatsappLink } from '../lib/students';
+import { displayName, CATEGORY_LABELS, RANK_LABELS, whatsappLink } from '../lib/students';
 import { describeDiscount } from '../lib/discount';
 import { STATUS_LABEL, studentPayments, studentPacks } from '../lib/money';
 import { downloadReceipt } from '../lib/receipt';
@@ -92,7 +92,8 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
             )}
           </div>
           <div className="profile__meta">
-            <span className={`badge badge--level-${student.level}`}>{LEVEL_LABELS[student.level]}</span>
+            {student.category && <span className="badge badge--cat">Cat. {CATEGORY_LABELS[student.category]}</span>}
+            {student.rank && <span className={`badge badge--rank-${student.rank}`}>Nivel {RANK_LABELS[student.rank]}</span>}
             {!student.active && <span className="chip chip--status-impaga">Archivado</span>}
             {student.discount && (
               <span className="disc-tag disc-tag--fija">Descuento fijo −{describeDiscount(student.discount)}</span>

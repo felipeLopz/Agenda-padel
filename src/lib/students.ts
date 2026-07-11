@@ -1,14 +1,29 @@
-import type { AgendaData, ClassEntry, ClassParticipant, Student, StudentLevel } from '../types';
+import type { AgendaData, ClassEntry, ClassParticipant, PadelCategory, PadelRank, Student } from '../types';
 
-/** Etiquetas legibles de cada nivel, en el orden en que se muestran. */
-export const LEVEL_LABELS: Record<StudentLevel, string> = {
-  principiante: 'Principiante',
-  intermedio: 'Intermedio',
-  avanzado: 'Avanzado',
-  competicion: 'Competición',
+/** Categorías de pádel disponibles (1ra = la más alta … 8va). */
+export const PADEL_CATEGORIES: PadelCategory[] = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va'];
+
+/** Etiqueta legible de una categoría (por ahora, el mismo texto: "3ra"). */
+export const CATEGORY_LABELS: Record<PadelCategory, string> = {
+  '1ra': '1ra',
+  '2da': '2da',
+  '3ra': '3ra',
+  '4ta': '4ta',
+  '5ta': '5ta',
+  '6ta': '6ta',
+  '7ma': '7ma',
+  '8va': '8va',
 };
 
-export const LEVELS: StudentLevel[] = ['principiante', 'intermedio', 'avanzado', 'competicion'];
+/** Niveles dentro de la categoría. */
+export const PADEL_RANKS: PadelRank[] = ['baja', 'media', 'alta'];
+
+/** Etiquetas legibles de cada nivel. */
+export const RANK_LABELS: Record<PadelRank, string> = {
+  baja: 'Baja',
+  media: 'Media',
+  alta: 'Alta',
+};
 
 /** Normaliza un nombre para comparar/deduplicar (sin espacios extra, en minúsculas). */
 export function normalizeName(name: string): string {
@@ -101,7 +116,7 @@ export function makeStudentFromName(id: string, name: string): Student {
     id,
     firstName,
     lastName,
-    level: 'principiante',
+    // Categoría/nivel quedan sin definir: el profe los carga a mano en la ficha.
     tags: [],
     active: true,
     createdAt: new Date().toISOString(),

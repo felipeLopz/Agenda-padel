@@ -19,6 +19,8 @@ import type {
   Expense,
   Objective,
   Pack,
+  PadelCategory,
+  PadelRank,
   Payment,
   PaymentMethod,
   Prices,
@@ -40,6 +42,16 @@ import { applyDiscountChain } from './discount';
 import { displayName, makeStudentFromName, normalizeName } from './students';
 
 const VALID_LEVELS: StudentLevel[] = ['principiante', 'intermedio', 'avanzado', 'competicion'];
+const VALID_CATEGORIES: PadelCategory[] = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va'];
+const VALID_RANKS: PadelRank[] = ['baja', 'media', 'alta'];
+
+/** Migración v6→v7: mapea el nivel viejo al nuevo campo "nivel" (baja/media/alta). */
+const LEVEL_TO_RANK: Record<StudentLevel, PadelRank> = {
+  principiante: 'baja',
+  intermedio: 'media',
+  avanzado: 'alta',
+  competicion: 'alta',
+};
 
 /** Intermedio v2: como una clase v2, con `paid`, antes de derivar el estado en v3.
  *  Además carga los campos v4 (duración/estado/serie) si el origen los trae. */
@@ -143,7 +155,8 @@ function parseProgressNotes(raw: unknown): ProgressNote[] | undefined {
 /** Sanea una ficha que viene de un JSON externo. Devuelve null si es inservible. */
 function normalizeStudent(raw: unknown): Student | null {
   if (!raw || typeof raw !== 'object') return null;
-  const s = raw as Partial<Student>;
+  // Se admite el campo viejo `level` (v6) para poder migrarlo a `rank`.
+  const s = raw as Partial<Student> & { level?: unknown };
   const firstName = typeof s.firstName === 'string' ? s.firstName : '';
   const lastName = typeof s.lastName === 'string' ? s.lastName : '';
   if (!firstName && !lastName) return null;
@@ -153,7 +166,13 @@ function normalizeStudent(raw: unknown): Student | null {
     lastName,
     photo: typeof s.photo === 'string' ? s.photo : undefined,
     phone: typeof s.phone === 'string' ? s.phone : undefined,
-    level: VALID_LEVELS.includes(s.level as StudentLevel) ? (s.level as StudentLevel) : 'principiante',
+    // Categoría/nivel (v7). Si la ficha viene del formato viejo, se migra `level` → `rank`.
+    category: VALID_CATEGORIES.includes(s.category as PadelCategory) ? (s.category as PadelCategory) : undefined,
+    rank: VALID_RANKS.includes(s.rank as PadelRank)
+      ? (s.rank as PadelRank)
+      : VALID_LEVELS.includes(s.level as StudentLevel)
+        ? LEVEL_TO_RANK[s.level as StudentLevel]
+        : undefined,
     birthday: typeof s.birthday === 'string' ? s.birthday : undefined,
     notes: typeof s.notes === 'string' ? s.notes : undefined,
     tags: Array.isArray(s.tags) ? s.tags.filter((t): t is string => typeof t === 'string') : [],
@@ -487,11 +506,12 @@ function normalizeBlocks(raw: unknown): Record<string, DayBlock> {
 }
 
 /**
- * Punto de entrada: normaliza cualquier JSON (v1..v6) a un AgendaData v6 completo.
+ * Punto de entrada: normaliza cualquier JSON (v1..v7) a un AgendaData v7 completo.
  * Encadena las migraciones anteriores; migrateV2toV3 ya emite la versión actual
- * (DATA_VERSION = 6) con todos los campos nuevos conservados (contenido/adjuntos,
- * objetivos/notas, y ahora horario/días laborales/tema). Idempotente, no descarta nada.
+ * (DATA_VERSION = 7) con todos los campos nuevos conservados (contenido/adjuntos,
+ * objetivos/notas, horario/días laborales/tema, y ahora categoría/nivel de pádel,
+ * migrando el `level` viejo). Idempotente, no descarta nada.
  */
-export function normalizeToV6(raw: unknown): AgendaData {
+export function normalizeToV7(raw: unknown): AgendaData {
   return migrateV2toV3(normalizeToV2(raw), raw);
 }
