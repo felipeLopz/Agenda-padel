@@ -32,7 +32,7 @@ function isoWeeksAhead(startDay: string, weeks: number): string {
 
 /** Alta y edición de una clase, con duración, estado y recurrencia. */
 export default function ClassFormModal({ target, onClose }: ClassFormModalProps) {
-  const { data, upsertClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
+  const { data, upsertClass, deleteClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
   const { day, hour, entry } = target;
 
   const [type, setType] = useState<ClassType>(entry?.type ?? 'grupal');
@@ -80,7 +80,18 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
   }
   function removeParticipant(idx: number) {
     const next = participants.filter((_, i) => i !== idx);
-    setParticipants(next.length ? next : [emptyParticipant()]);
+    if (next.length === 0) {
+      // Quedó sin nadie: si es una clase existente, se borra el turno (deshacible) y se
+      // cierra; si es una clase nueva, se deja una fila en blanco para cargar a alguien.
+      if (entry) {
+        deleteClass(day, hour);
+        onClose();
+        return;
+      }
+      setParticipants([emptyParticipant()]);
+      return;
+    }
+    setParticipants(next);
   }
 
   function addTopic(text: string) {
@@ -97,6 +108,12 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
   function handleSave() {
     const valid = participants.filter((p) => p.studentId || p.name.trim());
     if (valid.length === 0) {
+      // Clase existente que quedó sin alumnos → se borra el turno (deshacible), sin trabar.
+      if (entry) {
+        deleteClass(day, hour);
+        onClose();
+        return;
+      }
       alert('Ingresá al menos un alumno.');
       return;
     }

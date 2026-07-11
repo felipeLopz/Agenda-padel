@@ -1409,8 +1409,21 @@ textarea:focus {
 .day-slot__actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-left: auto;
+}
+
+/* Botón "Borrar turno" (rojo, con texto) en cada clase de la agenda del día. */
+.day-slot__delete-btn {
+  background: rgba(255, 92, 108, 0.14);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.day-slot__delete-btn:hover {
+  background: rgba(255, 92, 108, 0.24);
+  filter: none;
 }
 .day-slot__discount-flag {
   color: var(--orange-light);

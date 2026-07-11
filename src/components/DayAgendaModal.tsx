@@ -175,12 +175,12 @@ export default function DayAgendaModal({
                     ✎
                   </button>
                   <button
-                    className="icon-btn icon-btn--danger"
+                    className="btn btn--small day-slot__delete-btn"
                     onClick={() => handleDelete(hour, entry)}
                     aria-label="Borrar turno"
-                    title="Borrar turno entero"
+                    title="Borrar el turno entero (se puede deshacer)"
                   >
-                    🗑
+                    🗑 Borrar turno
                   </button>
                 </div>
               </div>
