@@ -28,6 +28,31 @@ etiqueta, por nivel y por estado), se crean, editan y archivan.
   alumno (precio ÷ cantidad de participantes), para que los números coincidan al cobrarle
   a cada uno. En clases individuales ambas cifras son iguales.
 
+## Estadísticas y reportes (pestaña Stats)
+
+Sección de métricas que **lee los datos existentes** (no cambia nada), con selector de
+período (un mes o todo el año) y comparación con el período anterior:
+
+- Clases del período (con variación % vs el anterior), cobrado, pendiente.
+- Ranking de asistencia (alumnos que más vienen), franjas horarias más/menos usadas.
+- Grupales vs individuales (dona), ingresos por tipo, promedio de alumnos por grupal.
+- Tasa de ocupación (franjas usadas / disponibles, descontando bloqueos).
+- Ingresos y clases mes a mes (gráficos de línea).
+- Deudores: se **enlaza** al ranking que ya vive en Caja (no se duplica).
+- **Gráficos propios en SVG/CSS** (barras, línea, dona) con la paleta, sin librería.
+- **Exportar** el reporte del período a **CSV** (abre en Excel) y **PDF** (reusa jsPDF).
+
+## Contenido deportivo
+
+- **Contenido de la clase**: temas trabajados como chips con sugerencias de pádel
+  (saque, bandeja, víbora, pared de fondo…) o texto libre. Se ven en la agenda del día.
+- **Objetivos por alumno** (en la ficha): con seguimiento, se marcan como *en progreso* o
+  *cumplido*.
+- **Notas de evolución** (en la ficha): registro con fecha para seguir el progreso.
+- **Adjuntos** (clase y alumno): **fotos** comprimidas (como la foto de perfil, guardadas
+  en localStorage) y **videos por enlace** (no se sube el archivo — pesa demasiado para
+  localStorage —, se pega la URL de YouTube/Drive/etc.).
+
 ## Agenda avanzada (recurrencias, bloqueos, feriados, duraciones, estados)
 
 - **Clases recurrentes**: al crear una clase se puede marcar "Repetir" (cada N semanas,
@@ -167,11 +192,11 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
   los archivos viejos v1 del prototipo. Importar **reemplaza** todos los datos actuales
   del dispositivo — la app pide confirmación antes de hacerlo.
 
-### Formato del archivo (v4)
+### Formato del archivo (v5)
 
 ```jsonc
 {
-  "version": 4,
+  "version": 5,
   "prices": { "grupal": 4000, "indiv": 12000 },
   "students": {
     "<id>": {
@@ -185,6 +210,16 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
       "notes": "mejorar el revés",              // opcional
       "tags": ["zurdo", "paga puntual"],
       "discount": { "type": "percent", "value": 20 }, // opcional: descuento fijo (percent|fixed)
+      "objectives": [                           // v5, opcional: objetivos con seguimiento
+        { "id": "<id>", "text": "Mejorar la bandeja", "status": "progreso", "createdAt": "..." }
+      ],
+      "progressNotes": [                        // v5, opcional: notas de evolución
+        { "id": "<id>", "date": "2026-07-11", "text": "Mejoró la salida de pared" }
+      ],
+      "attachments": [                          // v5, opcional: fotos/videos del alumno
+        { "id": "<id>", "kind": "foto", "dataUrl": "data:image/jpeg;base64,...", "createdAt": "..." },
+        { "id": "<id>", "kind": "video", "url": "https://youtu.be/...", "createdAt": "..." }
+      ],
       "active": true,
       "createdAt": "2026-07-11T00:00:00.000Z"
     }
@@ -201,7 +236,11 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
         "price": 8000,                          // precio de lista de la clase (sin `paid`)
         "duration": 90,                         // v4, opcional (minutos; ausente = 60)
         "state": "confirmada",                  // v4, opcional: confirmada|tentativa|cancelada|ausente
-        "seriesId": "<id>"                      // v4, opcional: pertenencia a una serie recurrente
+        "seriesId": "<id>",                     // v4, opcional: pertenencia a una serie recurrente
+        "content": ["Saque", "Bandeja"],        // v5, opcional: temas trabajados
+        "attachments": [                        // v5, opcional: fotos/videos de la clase
+          { "id": "<id>", "kind": "video", "url": "https://youtu.be/...", "createdAt": "..." }
+        ]
       }
     }
   },
@@ -239,7 +278,7 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
 Las "clases restantes" de un pack, los feriados y el estado cobrado/pendiente de cada
 clase **no se guardan**: se derivan (ver `src/lib/money.ts` y `src/lib/holidays.ts`).
 
-### Compatibilidad con los formatos viejos (v1 → v2 → v3 → v4)
+### Compatibilidad con los formatos viejos (v1 → v2 → v3 → v4 → v5)
 
 Al **cargar** el localStorage o **importar** un archivo, la app migra en cadena y sin
 perder datos (`src/lib/migrate.ts`, idempotente):
@@ -254,6 +293,10 @@ perder datos (`src/lib/migrate.ts`, idempotente):
 - **v3 → v4** → agrega `blocks: {}` y conserva `duration`/`state`/`seriesId` si vienen. No
   toca nada más: las clases sin esos campos usan los defaults (60 min, confirmada), así los
   totales y toda la lógica de plata quedan **idénticos** a v3.
+- **v4 → v5** → conserva los campos nuevos si vienen (contenido y adjuntos de clase;
+  objetivos, notas de evolución y adjuntos del alumno). No agrega ni cambia nada más: los
+  datos v4 quedan **idénticos** (los campos nuevos son opcionales y no afectan la plata ni
+  las vistas). Las estadísticas solo **leen** datos ya existentes.
 
 ## Decisiones tomadas
 
@@ -294,3 +337,12 @@ perder datos (`src/lib/migrate.ts`, idempotente):
 - **Bloqueos blandos**: bloquear un día/franja avisa pero permite cargar clase igual.
 - **Feriados**: solo los nacionales calculables (fijos + movibles de Pascua); no los
   puentes turísticos ni los traslados por decreto. Es una marca, no un bloqueo.
+- **Gráficos propios sin librería** (SVG/CSS), para no sumar dependencias ni peso.
+- **"Ingresos" en Stats = cobrado sobre las clases del período** (mismo criterio que la
+  barra anual), no lo percibido por fecha de pago; así coincide con lo que ya se ve.
+- **Ocupación = franjas usadas / disponibles**, con disponibles = días del período × 10
+  franjas − bloqueos. Cuenta todos los días del calendario (no solo hábiles).
+- **Videos por enlace, no por archivo**: subir un video reventaría la cuota de
+  localStorage; se guarda la URL. Las fotos sí se guardan comprimidas.
+- **El contenido/adjuntos de una clase son por-clase** (no se propagan al editar toda una
+  serie recurrente).

@@ -24,6 +24,37 @@ export interface Discount {
   value: number;
 }
 
+/**
+ * Adjunto (v5): foto comprimida (data URL) o enlace a un video. Los videos NO se
+ * suben como archivo (pesan demasiado para localStorage): se guarda un enlace.
+ */
+export interface Attachment {
+  id: string;
+  kind: 'foto' | 'video';
+  /** Foto: data URL comprimida (como la foto de perfil). */
+  dataUrl?: string;
+  /** Video: enlace (YouTube, Drive, etc.). */
+  url?: string;
+  caption?: string;
+  createdAt: string;
+}
+
+/** Objetivo de un alumno con seguimiento (v5). */
+export interface Objective {
+  id: string;
+  text: string;
+  status: 'progreso' | 'cumplido';
+  createdAt: string;
+}
+
+/** Nota de evolución del alumno a lo largo del tiempo (v5). */
+export interface ProgressNote {
+  id: string;
+  /** Fecha "YYYY-MM-DD". */
+  date: string;
+  text: string;
+}
+
 /** Ficha de un alumno. Los alumnos no se borran: se archivan con `active: false`. */
 export interface Student {
   id: string;
@@ -44,6 +75,12 @@ export interface Student {
   active: boolean;
   /** Descuento fijo permanente de la ficha (opcional). */
   discount?: Discount;
+  /** Objetivos del alumno con seguimiento (v5). */
+  objectives?: Objective[];
+  /** Notas de evolución del alumno, línea de tiempo (v5). */
+  progressNotes?: ProgressNote[];
+  /** Fotos y enlaces de video del alumno (v5). */
+  attachments?: Attachment[];
   /** Alta de la ficha (ISO). */
   createdAt: string;
 }
@@ -76,6 +113,10 @@ export interface ClassEntry {
   state?: ClassState;
   /** Id de la serie recurrente a la que pertenece (si fue generada por recurrencia). */
   seriesId?: string;
+  /** Temas trabajados en la clase (v5): "saque", "bandeja", "víbora", ... */
+  content?: string[];
+  /** Fotos y enlaces de video de la clase (v5). */
+  attachments?: Attachment[];
   // Nota: ya NO existe `paid`. El estado de cobro se deriva de los pagos.
 }
 

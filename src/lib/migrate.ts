@@ -10,16 +10,19 @@
 // Todo es idempotente y no descarta datos: los faltantes se completan por defecto.
 
 import type {
+  Attachment,
   ClassParticipant,
   ClassState,
   ClassType,
   DayBlock,
   Discount,
   Expense,
+  Objective,
   Pack,
   Payment,
   PaymentMethod,
   Prices,
+  ProgressNote,
   Settings,
   Student,
   StudentLevel,
@@ -48,6 +51,8 @@ interface V2Entry {
   duration?: number;
   state?: ClassState;
   seriesId?: string;
+  content?: string[];
+  attachments?: Attachment[];
 }
 interface V2Intermediate {
   prices: Prices;
@@ -63,6 +68,76 @@ function parseDiscount(raw: unknown): Discount | undefined {
   const value = Number(d.value);
   if (!Number.isFinite(value) || value <= 0) return undefined;
   return { type: d.type, value };
+}
+
+/** Lista de strings no vacíos (temas de clase). undefined si queda vacía. */
+function parseStringList(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const list = raw.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim());
+  return list.length > 0 ? list : undefined;
+}
+
+/** Sanea adjuntos (fotos como data URL o enlaces de video). */
+function parseAttachments(raw: unknown): Attachment[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const list = raw
+    .map((a): Attachment | null => {
+      if (!a || typeof a !== 'object') return null;
+      const at = a as Partial<Attachment>;
+      const kind = at.kind === 'video' ? 'video' : 'foto';
+      const dataUrl = typeof at.dataUrl === 'string' ? at.dataUrl : undefined;
+      const url = typeof at.url === 'string' ? at.url : undefined;
+      if (!dataUrl && !url) return null; // adjunto vacío
+      return {
+        id: typeof at.id === 'string' && at.id ? at.id : newId(),
+        kind,
+        dataUrl,
+        url,
+        caption: typeof at.caption === 'string' ? at.caption : undefined,
+        createdAt: typeof at.createdAt === 'string' ? at.createdAt : new Date().toISOString(),
+      };
+    })
+    .filter((a): a is Attachment => a !== null);
+  return list.length > 0 ? list : undefined;
+}
+
+/** Sanea objetivos del alumno. */
+function parseObjectives(raw: unknown): Objective[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const list = raw
+    .map((o): Objective | null => {
+      if (!o || typeof o !== 'object') return null;
+      const ob = o as Partial<Objective>;
+      const text = typeof ob.text === 'string' ? ob.text.trim() : '';
+      if (!text) return null;
+      return {
+        id: typeof ob.id === 'string' && ob.id ? ob.id : newId(),
+        text,
+        status: ob.status === 'cumplido' ? 'cumplido' : 'progreso',
+        createdAt: typeof ob.createdAt === 'string' ? ob.createdAt : new Date().toISOString(),
+      };
+    })
+    .filter((o): o is Objective => o !== null);
+  return list.length > 0 ? list : undefined;
+}
+
+/** Sanea notas de evolución del alumno. */
+function parseProgressNotes(raw: unknown): ProgressNote[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const list = raw
+    .map((n): ProgressNote | null => {
+      if (!n || typeof n !== 'object') return null;
+      const pn = n as Partial<ProgressNote>;
+      const text = typeof pn.text === 'string' ? pn.text.trim() : '';
+      if (!text) return null;
+      return {
+        id: typeof pn.id === 'string' && pn.id ? pn.id : newId(),
+        date: typeof pn.date === 'string' ? pn.date : new Date().toISOString().slice(0, 10),
+        text,
+      };
+    })
+    .filter((n): n is ProgressNote => n !== null);
+  return list.length > 0 ? list : undefined;
 }
 
 /** Sanea una ficha que viene de un JSON externo. Devuelve null si es inservible. */
@@ -84,6 +159,9 @@ function normalizeStudent(raw: unknown): Student | null {
     tags: Array.isArray(s.tags) ? s.tags.filter((t): t is string => typeof t === 'string') : [],
     active: s.active !== false, // por defecto activo
     discount: parseDiscount(s.discount),
+    objectives: parseObjectives(s.objectives),
+    progressNotes: parseProgressNotes(s.progressNotes),
+    attachments: parseAttachments(s.attachments),
     createdAt: typeof s.createdAt === 'string' ? s.createdAt : new Date().toISOString(),
   };
 }
@@ -144,6 +222,8 @@ function normalizeToV2(raw: unknown): V2Intermediate {
           duration?: unknown;
           state?: unknown;
           seriesId?: unknown;
+          content?: unknown;
+          attachments?: unknown;
         };
         const type: ClassType = entry.type === 'indiv' ? 'indiv' : 'grupal';
 
@@ -180,6 +260,8 @@ function normalizeToV2(raw: unknown): V2Intermediate {
           duration: Number.isFinite(durationNum) && durationNum > 0 ? durationNum : undefined,
           state: validStates.includes(entry.state as ClassState) ? (entry.state as ClassState) : undefined,
           seriesId: typeof entry.seriesId === 'string' ? entry.seriesId : undefined,
+          content: parseStringList(entry.content),
+          attachments: parseAttachments(entry.attachments),
         };
       }
 
@@ -310,7 +392,8 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
   const expenses = normalizeExpenses(src.expenses);
   const blocks = normalizeBlocks(src.blocks);
 
-  // Clases sin `paid` (el estado se deriva). Se conservan duración/estado/serie (v4).
+  // Clases sin `paid` (el estado se deriva). Se conservan duración/estado/serie (v4)
+  // y contenido/adjuntos (v5).
   const days: AgendaData['days'] = {};
   for (const [dKey, slots] of Object.entries(v2.days)) {
     const clean: AgendaData['days'][string] = {};
@@ -322,6 +405,8 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
         duration: entry.duration,
         state: entry.state,
         seriesId: entry.seriesId,
+        content: entry.content,
+        attachments: entry.attachments,
       };
     }
     days[dKey] = clean;
@@ -393,10 +478,11 @@ function normalizeBlocks(raw: unknown): Record<string, DayBlock> {
 }
 
 /**
- * Punto de entrada: normaliza cualquier JSON (v1/v2/v3/v4) a un AgendaData v4 completo.
+ * Punto de entrada: normaliza cualquier JSON (v1..v5) a un AgendaData v5 completo.
  * Encadena las migraciones anteriores; migrateV2toV3 ya emite la versión actual
- * (DATA_VERSION = 4) con los campos nuevos conservados.
+ * (DATA_VERSION = 5) con todos los campos nuevos conservados (contenido, adjuntos,
+ * objetivos y notas de evolución). Todo es idempotente y no descarta datos.
  */
-export function normalizeToV4(raw: unknown): AgendaData {
+export function normalizeToV5(raw: unknown): AgendaData {
   return migrateV2toV3(normalizeToV2(raw), raw);
 }

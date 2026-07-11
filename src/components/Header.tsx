@@ -1,4 +1,4 @@
-export type ViewMode = 'anual' | 'semanal' | 'alumnos' | 'caja';
+export type ViewMode = 'anual' | 'semanal' | 'alumnos' | 'caja' | 'stats';
 
 interface HeaderProps {
   view: ViewMode;
@@ -44,6 +44,12 @@ export default function Header({ view, onChangeView, year, onChangeYear, onOpenS
           onClick={() => onChangeView('caja')}
         >
           Caja
+        </button>
+        <button
+          className={`tab${view === 'stats' ? ' tab--active' : ''}`}
+          onClick={() => onChangeView('stats')}
+        >
+          Stats
         </button>
       </div>
 

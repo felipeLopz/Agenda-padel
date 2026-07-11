@@ -217,6 +217,20 @@ export default function DayAgendaModal({
                   </span>
                 </div>
               )}
+
+              {/* Temas trabajados y adjuntos (contenido deportivo). */}
+              {(entry.content?.length || entry.attachments?.length) && (
+                <div className="day-slot__content">
+                  {entry.content?.map((t) => (
+                    <span key={t} className="topic-chip">
+                      {t}
+                    </span>
+                  ))}
+                  {entry.attachments?.length ? (
+                    <span className="day-slot__attach-count">📎 {entry.attachments.length}</span>
+                  ) : null}
+                </div>
+              )}
             </div>
           );
         })}

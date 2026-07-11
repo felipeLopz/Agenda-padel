@@ -8,9 +8,11 @@ import { displayName, LEVEL_LABELS, whatsappLink } from '../lib/students';
 import { describeDiscount } from '../lib/discount';
 import { STATUS_LABEL, studentPayments, studentPacks } from '../lib/money';
 import { downloadReceipt } from '../lib/receipt';
-import type { Student } from '../types';
+import { newId } from '../lib/id';
+import type { Attachment, Objective, ProgressNote, Student } from '../types';
 import PaymentFormModal from './PaymentFormModal';
 import PackFormModal from './PackFormModal';
+import AttachmentsEditor from './AttachmentsEditor';
 
 interface StudentProfileModalProps {
   studentId: string;
@@ -21,14 +23,53 @@ interface StudentProfileModalProps {
 
 /** Ficha completa del alumno: datos, saldo, packs, historial de clases y de pagos. */
 export default function StudentProfileModal({ studentId, onClose, onEdit, onOpenDay }: StudentProfileModalProps) {
-  const { data, ledger, setStudentActive, deletePayment, deletePack } = useAgenda();
+  const { data, ledger, setStudentActive, upsertStudent, deletePayment, deletePack } = useAgenda();
   const student = data.students[studentId];
   const [payOpen, setPayOpen] = useState(false);
   const [packOpen, setPackOpen] = useState(false);
+  const [objText, setObjText] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   if (!student) {
     onClose();
     return null;
+  }
+
+  // --- Contenido deportivo de la ficha (objetivos, notas de evolución, adjuntos) ---
+  const objectives = student.objectives ?? [];
+  const progressNotes = [...(student.progressNotes ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+
+  function addObjective() {
+    const text = objText.trim();
+    if (!text) return;
+    const obj: Objective = { id: newId(), text, status: 'progreso', createdAt: new Date().toISOString() };
+    upsertStudent({ ...student, objectives: [...objectives, obj] });
+    setObjText('');
+  }
+  function toggleObjective(id: string) {
+    upsertStudent({
+      ...student,
+      objectives: objectives.map((o) =>
+        o.id === id ? { ...o, status: o.status === 'cumplido' ? 'progreso' : 'cumplido' } : o
+      ),
+    });
+  }
+  function deleteObjective(id: string) {
+    upsertStudent({ ...student, objectives: objectives.filter((o) => o.id !== id) });
+  }
+  function addProgressNote() {
+    const text = noteText.trim();
+    if (!text) return;
+    const note: ProgressNote = { id: newId(), date: noteDate, text };
+    upsertStudent({ ...student, progressNotes: [...(student.progressNotes ?? []), note] });
+    setNoteText('');
+  }
+  function deleteProgressNote(id: string) {
+    upsertStudent({ ...student, progressNotes: (student.progressNotes ?? []).filter((n) => n.id !== id) });
+  }
+  function setAttachments(next: Attachment[]) {
+    upsertStudent({ ...student, attachments: next.length ? next : undefined });
   }
 
   const account = ledger.byStudent[studentId];
@@ -131,6 +172,101 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
             ))}
           </div>
         )}
+
+        {/* Objetivos con seguimiento */}
+        <div className="profile__section">
+          <span className="profile__section-title">Objetivos</span>
+          <div className="objectives">
+            {objectives.map((o) => (
+              <div key={o.id} className={`objective objective--${o.status}`}>
+                <button
+                  type="button"
+                  className="objective__check"
+                  onClick={() => toggleObjective(o.id)}
+                  title={o.status === 'cumplido' ? 'Cumplido' : 'En progreso'}
+                >
+                  {o.status === 'cumplido' ? '✓' : '○'}
+                </button>
+                <span className="objective__text">{o.text}</span>
+                <span className={`chip chip--${o.status === 'cumplido' ? 'paid' : 'pending'} chip--mini`}>
+                  {o.status === 'cumplido' ? 'Cumplido' : 'En progreso'}
+                </span>
+                <button
+                  type="button"
+                  className="icon-btn icon-btn--danger"
+                  onClick={() => deleteObjective(o.id)}
+                  aria-label="Quitar objetivo"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {objectives.length === 0 && <p className="search-empty">Sin objetivos cargados.</p>}
+          </div>
+          <div className="tag-editor__input">
+            <input
+              type="text"
+              value={objText}
+              placeholder="Nuevo objetivo (ej: mejorar la bandeja)"
+              onChange={(e) => setObjText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addObjective();
+                }
+              }}
+            />
+            <button type="button" className="btn btn--ghost btn--small" onClick={addObjective}>
+              + Agregar
+            </button>
+          </div>
+        </div>
+
+        {/* Notas de evolución (línea de tiempo) */}
+        <div className="profile__section">
+          <span className="profile__section-title">Evolución</span>
+          <div className="progress-notes">
+            {progressNotes.map((n) => (
+              <div key={n.id} className="progress-note">
+                <span className="progress-note__date">{n.date.split('-').reverse().join('/')}</span>
+                <span className="progress-note__text">{n.text}</span>
+                <button
+                  type="button"
+                  className="icon-btn icon-btn--danger"
+                  onClick={() => deleteProgressNote(n.id)}
+                  aria-label="Quitar nota"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {progressNotes.length === 0 && <p className="search-empty">Sin notas de evolución.</p>}
+          </div>
+          <div className="progress-note__form">
+            <input type="date" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} />
+            <input
+              type="text"
+              value={noteText}
+              placeholder="Cómo viene, qué mejoró..."
+              onChange={(e) => setNoteText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addProgressNote();
+                }
+              }}
+            />
+            <button type="button" className="btn btn--ghost btn--small" onClick={addProgressNote}>
+              + Agregar
+            </button>
+          </div>
+        </div>
+
+        {/* Fotos y videos del alumno */}
+        <div className="profile__section">
+          <span className="profile__section-title">Fotos y videos</span>
+          <AttachmentsEditor attachments={student.attachments} onChange={setAttachments} />
+        </div>
 
         {/* Historial de pagos */}
         <div className="profile__history">

@@ -1911,6 +1911,342 @@ button {
 }
 
 /* -------------------------------------------------------------------------
+   Tanda 4 — estadísticas, reportes y contenido deportivo
+   ------------------------------------------------------------------------- */
+
+.stats-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.stats-view__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.stats-view__toolbar .select {
+  width: auto;
+}
+.stats-view__export {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Tarjetas de titulares */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat-card__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.stat-card__value {
+  font-size: 22px;
+  font-weight: 700;
+}
+.delta {
+  font-size: 11px;
+  font-weight: 600;
+}
+.delta--up {
+  color: var(--green);
+}
+.delta--down {
+  color: var(--danger);
+}
+.delta--none {
+  color: var(--muted);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+/* Barras horizontales */
+.hbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hbar__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.hbar__label {
+  width: 84px;
+  flex: 0 0 auto;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hbar__track {
+  flex: 1;
+  height: 12px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.hbar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  min-width: 2px;
+}
+.hbar__value {
+  width: 68px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-weight: 700;
+}
+
+/* Gráfico de línea */
+.linechart {
+  width: 100%;
+  height: 130px;
+}
+.linechart__xlabel {
+  font-size: 7px;
+  fill: var(--muted);
+}
+.linechart__peak {
+  font-size: 8px;
+  fill: var(--ink);
+  font-weight: 700;
+}
+
+/* Dona */
+.donut {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.donut__svg {
+  width: 120px;
+  height: 120px;
+  flex: 0 0 auto;
+}
+.donut__center {
+  font-size: 18px;
+  font-weight: 700;
+  fill: var(--ink);
+}
+.donut__legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.donut__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.donut__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* Contenido deportivo: temas (chips) */
+.topic-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(46, 204, 113, 0.14);
+  color: var(--green);
+}
+.day-slot__content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  align-items: center;
+}
+.day-slot__attach-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Adjuntos */
+.attach {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attach__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.attach__url {
+  flex: 1;
+  min-width: 160px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.attach__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.attach__item {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.attach__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.attach__video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--orange-light);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.attach__remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(2, 4, 12, 0.7);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Ficha: secciones nuevas (objetivos, evolución) */
+.profile__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.objectives {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.objective {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.objective__check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.objective--cumplido .objective__check {
+  background: var(--green-dim);
+  color: var(--green);
+  border-color: var(--green);
+}
+.objective__text {
+  flex: 1;
+}
+.objective--cumplido .objective__text {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.progress-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.progress-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.progress-note__date {
+  color: var(--muted);
+  font-size: 12px;
+  flex: 0 0 auto;
+  min-width: 64px;
+}
+.progress-note__text {
+  flex: 1;
+  white-space: pre-wrap;
+}
+.progress-note__form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.progress-note__form input[type='text'] {
+  flex: 1;
+  min-width: 140px;
+}
+.progress-note__form input[type='date'],
+.progress-note__form input[type='text'] {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* -------------------------------------------------------------------------
    Responsive: celular
    ------------------------------------------------------------------------- */
 

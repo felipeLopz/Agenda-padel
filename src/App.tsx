@@ -5,6 +5,7 @@ import AnnualView from './components/AnnualView';
 import WeeklyView from './components/WeeklyView';
 import StudentsView from './components/StudentsView';
 import FinanceView from './components/FinanceView';
+import StatsView from './components/StatsView';
 import DayAgendaModal from './components/DayAgendaModal';
 import ClassFormModal from './components/ClassFormModal';
 import SearchStudentModal from './components/SearchStudentModal';
@@ -69,6 +70,7 @@ function AppShell() {
         )}
         {view === 'alumnos' && <StudentsView onOpenDay={setOpenDay} />}
         {view === 'caja' && <FinanceView onOpenStudent={setProfileId} />}
+        {view === 'stats' && <StatsView onGoCaja={() => setView('caja')} />}
       </main>
 
       {openDay && (

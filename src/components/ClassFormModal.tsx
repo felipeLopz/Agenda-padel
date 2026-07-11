@@ -2,14 +2,15 @@ import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { parseDayKey } from '../lib/date';
-import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS } from '../lib/constants';
+import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS, COMMON_TOPICS } from '../lib/constants';
 import { suggestedPrice } from '../lib/pricing';
 import { participantName } from '../lib/students';
 import { classDuration, classState, findOverlapFor, STATE_LABEL, STATES, timeRange } from '../lib/classMeta';
 import type { RecurrenceInput } from '../lib/recurrence';
-import type { ClassEntry, ClassFormTarget, ClassParticipant, ClassState, ClassType } from '../types';
+import type { Attachment, ClassEntry, ClassFormTarget, ClassParticipant, ClassState, ClassType } from '../types';
 import StudentPicker from './StudentPicker';
 import DiscountEditor from './DiscountEditor';
+import AttachmentsEditor from './AttachmentsEditor';
 
 interface ClassFormModalProps {
   target: ClassFormTarget;
@@ -47,6 +48,10 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
   const [state, setState] = useState<ClassState>(entry ? classState(entry) : 'confirmada');
   const [collectNow, setCollectNow] = useState(false);
   const [showDiscounts, setShowDiscounts] = useState(Boolean(entry?.participants.some((p) => p.discount)));
+  // Contenido deportivo (temas trabajados) y adjuntos de la clase.
+  const [content, setContent] = useState<string[]>(entry?.content ?? []);
+  const [topicInput, setTopicInput] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>(entry?.attachments ?? []);
   // Aplicar la edición a toda la serie (solo si la clase pertenece a una).
   const [applyToSeries, setApplyToSeries] = useState(false);
 
@@ -83,6 +88,17 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
     recalcPrice(type, finalNext);
   }
 
+  function addTopic(text: string) {
+    const t = text.trim();
+    if (!t) return;
+    // Dedup sin distinguir mayúsculas.
+    if (!content.some((c) => c.toLowerCase() === t.toLowerCase())) setContent([...content, t]);
+    setTopicInput('');
+  }
+  function removeTopic(topic: string) {
+    setContent(content.filter((c) => c !== topic));
+  }
+
   function handleSave() {
     const valid = participants.filter((p) => p.studentId || p.name.trim());
     if (valid.length === 0) {
@@ -116,6 +132,8 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
       duration: duration !== 60 ? duration : undefined,
       state: state !== 'confirmada' ? state : undefined,
       seriesId: entry?.seriesId,
+      content: content.length ? content : undefined,
+      attachments: attachments.length ? attachments : undefined,
     };
 
     if (entry && entry.seriesId && applyToSeries) {
@@ -252,6 +270,52 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
           {state === 'ausente' && (
             <span className="discount-editor__hint">El alumno no vino, pero la clase se cobra igual.</span>
           )}
+        </div>
+
+        {/* Contenido de la clase: temas trabajados (chips con sugerencias). */}
+        <div className="class-form__row">
+          <label>Contenido de la clase (temas)</label>
+          {content.length > 0 && (
+            <div className="tag-editor__chips">
+              {content.map((t) => (
+                <span key={t} className="tag-chip">
+                  {t}
+                  <button type="button" onClick={() => removeTopic(t)} aria-label={`Quitar ${t}`}>
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="tag-editor__input">
+            <input
+              type="text"
+              list="topic-suggestions"
+              value={topicInput}
+              placeholder="Ej: saque, bandeja, víbora..."
+              onChange={(e) => setTopicInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addTopic(topicInput);
+                }
+              }}
+            />
+            <datalist id="topic-suggestions">
+              {COMMON_TOPICS.map((t) => (
+                <option key={t} value={t} />
+              ))}
+            </datalist>
+            <button type="button" className="btn btn--ghost btn--small" onClick={() => addTopic(topicInput)}>
+              + Agregar
+            </button>
+          </div>
+        </div>
+
+        {/* Adjuntos: fotos comprimidas + enlaces de video. */}
+        <div className="class-form__row">
+          <label>Fotos y videos de la clase</label>
+          <AttachmentsEditor attachments={attachments} onChange={setAttachments} />
         </div>
 
         {/* Recurrencia (solo al crear). */}
