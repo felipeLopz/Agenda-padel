@@ -12,6 +12,7 @@ import type { Attachment, ClassEntry, ClassFormTarget, ClassParticipant, ClassSt
 import StudentPicker from './StudentPicker';
 import DiscountEditor from './DiscountEditor';
 import AttachmentsEditor from './AttachmentsEditor';
+import NumberInput from './NumberInput';
 
 interface ClassFormModalProps {
   target: ClassFormTarget;
@@ -240,10 +241,9 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
                 {type === 'grupal' && (
                   <div className="participant-block__price">
                     <label>Precio de este alumno</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={p.price ?? data.prices.grupal}
-                      onChange={(e) => updateParticipant(idx, { ...p, price: Number(e.target.value) })}
+                      onChange={(n) => updateParticipant(idx, { ...p, price: n })}
                     />
                   </div>
                 )}
@@ -269,12 +269,11 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
             {type === 'indiv' ? (
               <>
                 <label>Importe</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={price}
-                  onChange={(e) => {
+                  onChange={(n) => {
                     setPriceTouched(true);
-                    setPrice(Number(e.target.value));
+                    setPrice(n);
                   }}
                 />
               </>
@@ -371,12 +370,7 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
               <div className="recurrence">
                 <div className="recurrence__row">
                   <span>Cada</span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={everyWeeks}
-                    onChange={(e) => setEveryWeeks(Number(e.target.value))}
-                  />
+                  <NumberInput min={1} value={everyWeeks} onChange={setEveryWeeks} />
                   <span>semana(s)</span>
                 </div>
                 <div className="recurrence__row">
@@ -385,7 +379,7 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
                     <option value="date">Hasta una fecha</option>
                   </select>
                   {endType === 'count' ? (
-                    <input type="number" min={1} value={count} onChange={(e) => setCount(Number(e.target.value))} />
+                    <NumberInput min={1} value={count} onChange={setCount} />
                   ) : (
                     <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   )}

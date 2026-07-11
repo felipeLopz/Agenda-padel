@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Modal from './Modal';
+import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
 import { formatCurrency } from '../lib/format';
 import { displayName } from '../lib/students';
@@ -67,7 +68,7 @@ export default function PaymentFormModal({ studentId, onClose, defaultAmount, cl
         <div className="class-form__row class-form__row--split">
           <div>
             <label>Monto</label>
-            <input type="number" value={amount} min={0} onChange={(e) => setAmount(Number(e.target.value))} />
+            <NumberInput value={amount} min={0} onChange={setAmount} />
           </div>
           <div>
             <label>Fecha</label>

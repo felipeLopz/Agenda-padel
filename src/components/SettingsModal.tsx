@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import Modal from './Modal';
+import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
 import { useAuth } from '../state/AuthContext';
 import { newId } from '../lib/id';
@@ -102,11 +103,11 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         <div className="class-form__row class-form__row--split">
           <div>
             <label>Precio grupal (por alumno)</label>
-            <input type="number" value={grupal} onChange={(e) => setGrupal(Number(e.target.value))} />
+            <NumberInput value={grupal} onChange={setGrupal} />
           </div>
           <div>
             <label>Precio individual (por clase)</label>
-            <input type="number" value={indiv} onChange={(e) => setIndiv(Number(e.target.value))} />
+            <NumberInput value={indiv} onChange={setIndiv} />
           </div>
         </div>
 
@@ -152,7 +153,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
         <div className="class-form__row">
           <label>Avisar cuando al pack le queden ≤ estas clases</label>
-          <input type="number" min={0} value={packLow} onChange={(e) => setPackLow(Number(e.target.value))} />
+          <NumberInput min={0} value={packLow} onChange={setPackLow} />
         </div>
 
         <hr className="settings__divider" />

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Modal from './Modal';
+import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
 import { newId } from '../lib/id';
 import type { Expense } from '../types';
@@ -52,7 +53,7 @@ export default function ExpenseFormModal({ expense, onClose }: ExpenseFormModalP
         <div className="class-form__row class-form__row--split">
           <div>
             <label>Monto</label>
-            <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+            <NumberInput min={0} value={amount} onChange={setAmount} />
           </div>
           <div>
             <label>Fecha</label>

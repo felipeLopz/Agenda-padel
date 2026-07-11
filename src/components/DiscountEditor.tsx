@@ -1,3 +1,4 @@
+import NumberInput from './NumberInput';
 import type { Discount } from '../types';
 
 interface DiscountEditorProps {
@@ -28,13 +29,12 @@ export default function DiscountEditor({ value, onChange, hint }: DiscountEditor
         <option value="fixed">Monto fijo $</option>
       </select>
       {value && (
-        <input
+        <NumberInput
           className="discount-editor__value"
-          type="number"
           min={0}
           value={value.value}
           placeholder={value.type === 'percent' ? '%' : '$'}
-          onChange={(e) => onChange({ type: value.type, value: Number(e.target.value) })}
+          onChange={(n) => onChange({ type: value.type, value: n })}
         />
       )}
       {hint && <span className="discount-editor__hint">{hint}</span>}

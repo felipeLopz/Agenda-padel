@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Modal from './Modal';
+import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
 import { displayName } from '../lib/students';
 
@@ -49,11 +50,11 @@ export default function PackFormModal({ studentId, onClose }: PackFormModalProps
         <div className="class-form__row class-form__row--split">
           <div>
             <label>Cantidad de clases</label>
-            <input type="number" min={1} value={totalClasses} onChange={(e) => setTotalClasses(Number(e.target.value))} />
+            <NumberInput min={1} value={totalClasses} onChange={setTotalClasses} />
           </div>
           <div>
             <label>Precio del pack</label>
-            <input type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+            <NumberInput min={0} value={price} onChange={setPrice} />
           </div>
         </div>
 
