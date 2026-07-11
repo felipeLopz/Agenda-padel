@@ -17,6 +17,7 @@ import {
   timeRange,
 } from '../lib/classMeta';
 import { holidayName } from '../lib/holidays';
+import { useExitAnim } from '../hooks/useExitAnim';
 import type { ClassEntry } from '../types';
 
 interface DayAgendaModalProps {
@@ -42,6 +43,7 @@ export default function DayAgendaModal({
   onBlockDay,
 }: DayAgendaModalProps) {
   const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant } = useAgenda();
+  const { isExiting, removeWithAnim } = useExitAnim();
   const date = parseDayKey(day);
   const slots = data.days[day];
   const totals = dayTotals(data, ledger, day);
@@ -194,8 +196,9 @@ export default function DayAgendaModal({
                       ? ledger.byStudent[p.studentId]?.participations.find((pp) => pp.day === day && pp.hour === hour)
                       : undefined;
                     const pStatus = part?.status;
+                    const rowKey = `${hour}-${idx}`;
                     return (
-                      <div key={idx} className="student-line">
+                      <div key={idx} className={`student-line${isExiting(rowKey) ? ' is-exiting' : ''}`}>
                         <span className="student-line__name">{participantName(p, data.students)}</span>
                         <span className="student-line__amount">{formatCurrency(bd.net)}</span>
                         {bd.fixedDiscount && (
@@ -224,7 +227,7 @@ export default function DayAgendaModal({
                           className="student-line__remove"
                           onClick={() => {
                             if (confirm(`¿Sacar a ${participantName(p, data.students)} de este turno?`))
-                              removeParticipant(day, hour, idx);
+                              removeWithAnim(rowKey, () => removeParticipant(day, hour, idx));
                           }}
                           aria-label="Sacar del turno"
                           title="Sacar del turno"

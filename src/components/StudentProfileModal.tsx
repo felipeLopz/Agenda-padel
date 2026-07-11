@@ -9,6 +9,7 @@ import { describeDiscount } from '../lib/discount';
 import { STATUS_LABEL, studentPayments, studentPacks } from '../lib/money';
 import { downloadReceipt } from '../lib/receipt';
 import { newId } from '../lib/id';
+import { useExitAnim } from '../hooks/useExitAnim';
 import type { Attachment, Objective, ProgressNote, Student } from '../types';
 import PaymentFormModal from './PaymentFormModal';
 import PackFormModal from './PackFormModal';
@@ -24,6 +25,7 @@ interface StudentProfileModalProps {
 /** Ficha completa del alumno: datos, saldo, packs, historial de clases y de pagos. */
 export default function StudentProfileModal({ studentId, onClose, onEdit, onOpenDay }: StudentProfileModalProps) {
   const { data, ledger, setStudentActive, upsertStudent, deletePayment, deletePack } = useAgenda();
+  const { isExiting, removeWithAnim } = useExitAnim();
   const student = data.students[studentId];
   const [payOpen, setPayOpen] = useState(false);
   const [packOpen, setPackOpen] = useState(false);
@@ -274,7 +276,7 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
           <span className="profile__section-title">Pagos ({payments.length})</span>
           <div className="search-results">
             {payments.map((p) => (
-              <div key={p.id} className="payment-row">
+              <div key={p.id} className={`payment-row${isExiting(p.id) ? ' is-exiting' : ''}`}>
                 <span>{p.date.split('-').reverse().join('/')}</span>
                 <span className="payment-row__amount">{formatCurrency(p.amount)}</span>
                 <span className="payment-row__method">{methodLabel(p.methodId)}</span>
@@ -288,7 +290,7 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
                 <button
                   className="icon-btn icon-btn--danger"
                   onClick={() => {
-                    if (confirm('¿Borrar este pago?')) deletePayment(p.id);
+                    if (confirm('¿Borrar este pago?')) removeWithAnim(p.id, () => deletePayment(p.id));
                   }}
                   aria-label="Borrar pago"
                 >

@@ -2351,6 +2351,7 @@ textarea:focus {
   padding: 8px 10px 8px 16px;
   box-shadow: var(--shadow);
   max-width: 92vw;
+  overflow: hidden; /* recorta la barra de tiempo a la forma del aviso */
 }
 .undo-toast__label {
   font-size: 13px;
@@ -2649,4 +2650,132 @@ textarea:focus {
   font-size: 15px;
   font-weight: 700;
   color: var(--ink);
+}
+
+/* =========================================================================
+   Efectos — Tanda 1: feedback e interacciones. Sutiles, rápidos, tema-aware.
+   ========================================================================= */
+
+/* Botón "Borrar turno" del formulario: va a la izquierda de la fila de acciones. */
+.class-form__delete {
+  margin-right: auto;
+}
+
+/* 2) Botones: leve "hundido" (scale) al presionar — feedback táctil (celular). */
+.btn,
+.icon-btn,
+.tab,
+.segmented__option,
+.day-slot__delete-btn,
+.link-btn {
+  transition: filter 0.15s ease, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease,
+    transform 0.07s ease;
+}
+
+.btn:active,
+.icon-btn:active,
+.tab:active,
+.segmented__option:active,
+.day-slot__delete-btn:active,
+.undo-toast__btn:active,
+.day-slot__add:active {
+  transform: scale(0.96);
+}
+
+/* 1) Cobro: el chip de estado pasa de ámbar a verde con transición (no salto seco);
+      también los tintes de las celdas/filas de la agenda al cambiar de estado. */
+.chip,
+.day-slot,
+.week-cell,
+.day-row {
+  transition: background-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease;
+}
+
+/* 5) Filas de listas: resaltado suave al pasar el mouse. */
+.payment-row,
+.expense-row,
+.pack-row,
+.method-row,
+.student-line {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.payment-row:hover,
+.expense-row:hover,
+.pack-row:hover,
+.student-line:hover {
+  background: var(--bg-card-hover);
+}
+
+/* 3) Entrada suave de elementos nuevos (alumno nuevo / clase nueva). */
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.student-card,
+.day-slot--filled {
+  animation: itemIn 0.22s ease both;
+}
+
+/* 4) Salida suave: desvanecer + colapsar antes de desaparecer (clase `is-exiting`). */
+@keyframes itemOut {
+  from {
+    opacity: 1;
+    max-height: 60px;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateX(16px);
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}
+
+.is-exiting {
+  animation: itemOut 0.2s ease forwards;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 6) Barra de tiempo del toast "Deshacer": se va vaciando en 7s. */
+.undo-toast__timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--blue);
+  transform-origin: left center;
+  animation: undoTimer 7s linear forwards;
+}
+
+@keyframes undoTimer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* Respeta prefers-reduced-motion: reduce todo al mínimo para no marear. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

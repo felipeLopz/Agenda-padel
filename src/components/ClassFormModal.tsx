@@ -409,6 +409,20 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
         )}
 
         <div className="class-form__actions">
+          {entry && (
+            <button
+              type="button"
+              className="btn btn--small day-slot__delete-btn class-form__delete"
+              onClick={() => {
+                if (confirm('¿Borrar este turno entero? Podés deshacerlo con "Deshacer".')) {
+                  deleteClass(day, hour);
+                  onClose();
+                }
+              }}
+            >
+              🗑 Borrar turno
+            </button>
+          )}
           <button className="btn btn--ghost" onClick={onClose}>
             Cancelar
           </button>

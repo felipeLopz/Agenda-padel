@@ -23,6 +23,8 @@ export default function UndoToast() {
       <button className="undo-toast__close" onClick={dismissUndo} aria-label="Cerrar">
         ✕
       </button>
+      {/* Barra que se va vaciando (7s). El `key` la reinicia con cada aviso nuevo. */}
+      <span className="undo-toast__timer" key={undoInfo.at} />
     </div>
   );
 }
