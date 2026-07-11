@@ -31,6 +31,7 @@ import { useAuth } from './AuthContext';
 import { isSupabaseConfigured } from '../lib/supabase';
 import {
   decideInitialSync,
+  getLocalUpdatedAt,
   hasMeaningfulData,
   pushRemote,
   setLocalOwnerId,
@@ -122,36 +123,56 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
   // --- Sincronización en la nube (Tanda 6) ---
   const { user } = useAuth();
+  const userId = user?.id ?? null; // string estable: NO cambia al refrescar el token
   // Bandera anti-loop: la sincronización inicial (bajar/migrar) NO debe disparar una
   // subida. Se habilita recién cuando termina el arranque.
   const syncReady = useRef(false);
   // Evita el "eco": cuando la app adopta los datos de la nube, ese cambio no se re-sube.
   const skipNextPush = useRef(false);
+  // Guarda: la sincronización inicial corre UNA sola vez por usuario (no en cada
+  // refresco de token ni al volver a la pestaña).
+  const syncedForUser = useRef<string | null>(null);
   // Última versión de los datos, para usar en callbacks sin closures viejos.
   const dataRef = useRef(data);
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
-  // Debounce de la subida + marca de "quedó algo sin subir" (para reintentar).
+  // Estado de la subida: retardo pendiente, sello del último cambio y si quedó algo
+  // sin subir (para reintentar al reconectar o al ocultar/cerrar la pestaña).
   const pushTimer = useRef<number | null>(null);
-  const pendingPush = useRef(false);
+  const hasUnsynced = useRef(false);
+  const latestUpdatedAt = useRef<string>(getLocalUpdatedAt() ?? '');
 
-  const queuePush = useCallback(
-    (nextData: AgendaData, updatedAt: string) => {
-      if (!isSupabaseConfigured || !user) return;
+  // Sube YA lo último que haya sin sincronizar (cancela el retardo pendiente).
+  const flushPush = useCallback(async () => {
+    if (pushTimer.current !== null) {
+      clearTimeout(pushTimer.current);
+      pushTimer.current = null;
+    }
+    if (!isSupabaseConfigured || !userId || !hasUnsynced.current) return;
+    const updatedAt = latestUpdatedAt.current;
+    const ok = await pushRemote(userId, dataRef.current, updatedAt);
+    if (ok) setLocalOwnerId(userId);
+    // Solo se marca como sincronizado si mientras subía NO entró un cambio más nuevo.
+    if (ok && latestUpdatedAt.current === updatedAt) hasUnsynced.current = false;
+  }, [userId]);
+
+  // Programa una subida con un pequeño retardo (agrupa cambios seguidos).
+  const schedulePush = useCallback(
+    (updatedAt: string) => {
+      if (!isSupabaseConfigured || !userId) return;
+      latestUpdatedAt.current = updatedAt;
+      hasUnsynced.current = true;
       if (pushTimer.current !== null) clearTimeout(pushTimer.current);
-      pushTimer.current = window.setTimeout(async () => {
-        pushTimer.current = null;
-        const ok = await pushRemote(user.id, nextData, updatedAt);
-        if (ok) setLocalOwnerId(user.id);
-        pendingPush.current = !ok; // si falló (sin internet), queda pendiente
+      pushTimer.current = window.setTimeout(() => {
+        void flushPush();
       }, 1500);
     },
-    [user]
+    [userId, flushPush]
   );
 
   // Persiste en localStorage ante cualquier cambio (caché siempre disponible) y, si
-  // el arranque ya terminó, sube el cambio a la nube con un pequeño retardo.
+  // el arranque ya terminó, programa la subida a la nube.
   useEffect(() => {
     saveData(data);
     if (!syncReady.current) return; // durante hidratación/arranque no se sube
@@ -161,55 +182,78 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     }
     const now = new Date().toISOString();
     setLocalUpdatedAt(now);
-    queuePush(data, now);
-  }, [data, queuePush]);
+    schedulePush(now);
+  }, [data, schedulePush]);
 
-  // Arranque: decide qué gana (nube vs este dispositivo) y aplica sin pisar a ciegas.
+  // Arranque: corre UNA sola vez por login (atado a userId, un string estable). Los
+  // refrescos de token o volver a la pestaña ya NO la re-ejecutan (antes bajaban y
+  // pisaban datos a mitad de sesión). Decide qué gana sin pisar cambios locales.
   useEffect(() => {
-    if (!isSupabaseConfigured || !user) {
+    if (!isSupabaseConfigured || !userId) {
       syncReady.current = true;
+      return;
+    }
+    if (syncedForUser.current === userId) {
+      syncReady.current = true; // ya sincronizado para este usuario: no repetir
       return;
     }
     let cancelled = false;
     syncReady.current = false;
     (async () => {
-      const decision = await decideInitialSync(user.id, dataRef.current);
+      const decision = await decideInitialSync(userId, dataRef.current);
       if (cancelled) return;
       switch (decision.action) {
-        case 'adopt': // gana la nube: se cargan sus datos en la app
-          setLocalOwnerId(user.id);
+        case 'adopt': // gana la nube (estrictamente más nueva): se cargan sus datos
+          setLocalOwnerId(userId);
           setLocalUpdatedAt(decision.updatedAt);
+          latestUpdatedAt.current = decision.updatedAt;
+          hasUnsynced.current = false;
           skipNextPush.current = true;
           dispatch({ type: 'LOAD', payload: decision.data });
           break;
         case 'push': // gana lo local (o migración inicial): se sube
-          setLocalOwnerId(user.id);
+          setLocalOwnerId(userId);
           setLocalUpdatedAt(decision.updatedAt);
-          await pushRemote(user.id, dataRef.current, decision.updatedAt);
+          latestUpdatedAt.current = decision.updatedAt;
+          hasUnsynced.current = false;
+          await pushRemote(userId, dataRef.current, decision.updatedAt);
           break;
         case 'noop': // todo vacío: solo se marca el dueño de la caché
-          setLocalOwnerId(user.id);
+          setLocalOwnerId(userId);
           break;
         case 'offline': // sin conexión: se sigue con lo local y se reintenta luego
-          pendingPush.current = hasMeaningfulData(dataRef.current);
+          hasUnsynced.current = hasMeaningfulData(dataRef.current);
           break;
       }
       syncReady.current = true;
+      syncedForUser.current = userId; // marca: este usuario ya hizo su sync inicial
     })();
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [userId]);
 
-  // Al recuperar la conexión, si quedó algo sin subir, se reintenta.
+  // Subida confiable: al ocultar o cerrar la pestaña se fuerza la subida pendiente
+  // (no se espera el retardo), y al reconectar se reintenta. Así no se pierde nada.
   useEffect(() => {
-    function onOnline() {
-      if (!syncReady.current || !pendingPush.current || !user) return;
-      queuePush(dataRef.current, new Date().toISOString());
+    function onVisibility() {
+      if (document.visibilityState === 'hidden') void flushPush();
     }
+    function onPageHide() {
+      void flushPush();
+    }
+    function onOnline() {
+      if (hasUnsynced.current) void flushPush();
+    }
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
     window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-  }, [user, queuePush]);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [flushPush]);
 
   // Limpieza del retardo pendiente al desmontar (p. ej. al cerrar sesión).
   useEffect(() => {

@@ -93,8 +93,9 @@ export type SyncDecision =
  * Decide qué hacer al iniciar sesión, sin pisar datos a ciegas:
  *  - Nube vacía + datos locales míos  → subir (migración).
  *  - Nube con datos + local vacío     → bajar.
- *  - Ambos con datos                  → gana el más reciente (por updated_at).
- *    Si no se puede determinar (datos previos a la Tanda 6, sin sello), se PREGUNTA.
+ *  - Ambos con datos                  → gana el más reciente (por updated_at); solo
+ *    se baja la nube si es ESTRICTAMENTE más nueva. Ante la duda (sin sello local,
+ *    datos previos a la Tanda 6) NO se pisa lo local: se conserva y se sube.
  */
 export async function decideInitialSync(userId: string, localData: AgendaData): Promise<SyncDecision> {
   let remote: RemoteSnapshot | null;
@@ -125,19 +126,13 @@ export async function decideInitialSync(userId: string, localData: AgendaData): 
   // Ambos con datos: gana el más reciente por fecha de última modificación.
   const localUpdatedAt = getLocalUpdatedAt();
   if (!localUpdatedAt) {
-    // Sin sello local (datos previos a la Tanda 6): no se puede determinar.
-    // Se pregunta antes de pisar nada.
-    const keepRemote = window.confirm(
-      'Se encontraron datos en ESTE DISPOSITIVO y también en la NUBE, y no se puede ' +
-        'determinar cuál es más reciente.\n\n' +
-        'Aceptar = conservar los datos de la NUBE (se descartan los de este dispositivo).\n' +
-        'Cancelar = conservar los datos de ESTE DISPOSITIVO (se suben y pisan los de la nube).'
-    );
-    return keepRemote
-      ? { action: 'adopt', data: remote.data, updatedAt: remote.updatedAt }
-      : { action: 'push', updatedAt: new Date().toISOString() };
+    // Sin sello local (datos previos a la Tanda 6): no se puede saber cuál es más
+    // nuevo. Ante la duda NO se pisa lo local: se conserva y se sube a la nube.
+    return { action: 'push', updatedAt: new Date().toISOString() };
   }
 
+  // Solo se baja la nube si es ESTRICTAMENTE más nueva. Si están iguales, o si el
+  // local es más nuevo, gana lo local: nunca se pisan cambios locales sin subir.
   const remoteNewer = new Date(remote.updatedAt).getTime() > new Date(localUpdatedAt).getTime();
   return remoteNewer
     ? { action: 'adopt', data: remote.data, updatedAt: remote.updatedAt }
