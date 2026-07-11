@@ -6,10 +6,17 @@
 // números coincidan con lo que ya se ve en la app. Las clases canceladas no cuentan.
 
 import type { AgendaData, ClassType } from '../types';
-import { HOURS } from './constants';
-import { daysInMonth } from './date';
+import { parseDayKey } from './date';
 import { isChargeable } from './classMeta';
 import { classKey, monthTotals, yearTotals, type Ledger, type Totals } from './money';
+import {
+  countWorkdaysInPeriod,
+  endHour,
+  isWorkday,
+  scheduleHours,
+  slotsPerDay,
+  startHour,
+} from './schedule';
 
 /** Período de análisis: un mes (month 0-indexado) o todo el año (month = null). */
 export interface Period {
@@ -23,10 +30,6 @@ function dayInPeriod(day: string, period: Period): boolean {
   if (y !== period.year) return false;
   if (period.month != null && m !== period.month) return false;
   return true;
-}
-
-function isLeap(year: number): boolean {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
 /** Totales del período usando las funciones de money (mes o año). */
@@ -52,8 +55,8 @@ export interface StatsSummary {
   byTypeCount: Record<ClassType, number>;
   /** Cobrado atribuido a cada tipo de clase. */
   incomeByType: Record<ClassType, number>;
-  /** Cantidad de clases por franja horaria (índice alineado a HOURS). */
-  byHour: number[];
+  /** Cantidad de clases por franja horaria (horario configurado + horas con clase). */
+  byHour: Array<{ hour: number; count: number }>;
   /** Ranking de asistencia: alumnos con más clases (no canceladas). */
   attendance: Array<{ studentId: string; count: number }>;
   /** Promedio de alumnos por clase grupal. */
@@ -70,9 +73,13 @@ export interface StatsSummary {
 export function computeStats(data: AgendaData, ledger: Ledger, period: Period): StatsSummary {
   const totals = periodTotals(data, ledger, period);
 
+  const settings = data.settings;
   const byTypeCount: Record<ClassType, number> = { grupal: 0, indiv: 0 };
   const incomeByType: Record<ClassType, number> = { grupal: 0, indiv: 0 };
-  const byHour = HOURS.map(() => 0);
+  // Contador por hora: se siembra con el horario configurado y se agregan las horas
+  // con clase que caigan fuera de ese rango (para no esconder ninguna).
+  const byHourMap = new Map<number, number>();
+  for (const h of scheduleHours(settings)) byHourMap.set(h, 0);
   const attendanceMap = new Map<string, number>();
   let groupSizeSum = 0;
   let groupClasses = 0;
@@ -87,8 +94,7 @@ export function computeStats(data: AgendaData, ledger: Ledger, period: Period): 
       }
       const hour = Number(hourStr);
       byTypeCount[entry.type] += 1;
-      const hourIdx = HOURS.indexOf(hour);
-      if (hourIdx >= 0) byHour[hourIdx] += 1;
+      byHourMap.set(hour, (byHourMap.get(hour) ?? 0) + 1);
       const acc = ledger.byClass[classKey(day, hour)];
       if (acc) incomeByType[entry.type] += acc.collected;
       for (const p of entry.participants) {
@@ -101,21 +107,29 @@ export function computeStats(data: AgendaData, ledger: Ledger, period: Period): 
     }
   }
 
+  const byHour = [...byHourMap.entries()]
+    .map(([hour, count]) => ({ hour, count }))
+    .sort((a, b) => a.hour - b.hour);
+
   const attendance = [...attendanceMap.entries()]
     .map(([studentId, count]) => ({ studentId, count }))
     .sort((a, b) => b.count - a.count);
 
   const used = byTypeCount.grupal + byTypeCount.indiv;
 
-  // Franjas disponibles = días del período × 10 franjas − franjas bloqueadas.
-  const totalDays =
-    period.month != null ? daysInMonth(period.year, period.month) : isLeap(period.year) ? 366 : 365;
+  // Franjas disponibles = días LABORALES del período × franjas por día − bloqueos.
+  // Solo se descuentan bloqueos que caen en días laborales y dentro del horario.
+  const workdays = countWorkdaysInPeriod(settings, period.year, period.month);
+  const perDay = slotsPerDay(settings);
+  const sh = startHour(settings);
+  const eh = endHour(settings);
   let blockedSlots = 0;
   for (const [day, block] of Object.entries(data.blocks)) {
     if (!dayInPeriod(day, period)) continue;
-    blockedSlots += block.fullDay ? HOURS.length : (block.hours?.length ?? 0);
+    if (!isWorkday(settings, parseDayKey(day))) continue;
+    blockedSlots += block.fullDay ? perDay : (block.hours ?? []).filter((h) => h >= sh && h <= eh).length;
   }
-  const available = Math.max(0, totalDays * HOURS.length - blockedSlots);
+  const available = Math.max(0, workdays * perDay - blockedSlots);
   const rate = available > 0 ? used / available : 0;
 
   return {

@@ -378,6 +378,9 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
   const methodIds = new Set(paymentMethods.map((m) => m.id));
 
   const rawSettings = (src.settings ?? {}) as Partial<Settings>;
+  const validWorkDays = Array.isArray(rawSettings.workDays)
+    ? rawSettings.workDays.filter((d): d is number => typeof d === 'number' && d >= 0 && d <= 6)
+    : undefined;
   const settings: Settings = {
     defaultMethodId:
       typeof rawSettings.defaultMethodId === 'string' && methodIds.has(rawSettings.defaultMethodId)
@@ -386,6 +389,12 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
           ? DEFAULT_SETTINGS.defaultMethodId
           : paymentMethods[0].id,
     packLowThreshold: Number(rawSettings.packLowThreshold) || DEFAULT_SETTINGS.packLowThreshold,
+    // Horario/días laborales/tema (v6): se completan con defaults si no vienen.
+    workDays: validWorkDays && validWorkDays.length ? validWorkDays : [...(DEFAULT_SETTINGS.workDays ?? [])],
+    startHour: typeof rawSettings.startHour === 'number' ? rawSettings.startHour : DEFAULT_SETTINGS.startHour,
+    endHour: typeof rawSettings.endHour === 'number' ? rawSettings.endHour : DEFAULT_SETTINGS.endHour,
+    theme: rawSettings.theme === 'light' ? 'light' : 'dark',
+    lastExportAt: typeof rawSettings.lastExportAt === 'string' ? rawSettings.lastExportAt : undefined,
   };
 
   const packs = normalizePacks(src.packs);
@@ -478,11 +487,11 @@ function normalizeBlocks(raw: unknown): Record<string, DayBlock> {
 }
 
 /**
- * Punto de entrada: normaliza cualquier JSON (v1..v5) a un AgendaData v5 completo.
+ * Punto de entrada: normaliza cualquier JSON (v1..v6) a un AgendaData v6 completo.
  * Encadena las migraciones anteriores; migrateV2toV3 ya emite la versión actual
- * (DATA_VERSION = 5) con todos los campos nuevos conservados (contenido, adjuntos,
- * objetivos y notas de evolución). Todo es idempotente y no descarta datos.
+ * (DATA_VERSION = 6) con todos los campos nuevos conservados (contenido/adjuntos,
+ * objetivos/notas, y ahora horario/días laborales/tema). Idempotente, no descarta nada.
  */
-export function normalizeToV5(raw: unknown): AgendaData {
+export function normalizeToV6(raw: unknown): AgendaData {
   return migrateV2toV3(normalizeToV2(raw), raw);
 }

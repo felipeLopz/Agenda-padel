@@ -1,3 +1,5 @@
+import { useAgenda } from '../state/AgendaContext';
+
 export type ViewMode = 'anual' | 'semanal' | 'alumnos' | 'caja' | 'stats';
 
 interface HeaderProps {
@@ -11,6 +13,8 @@ interface HeaderProps {
 
 /** Barra superior: marca, tabs de vista, selector de año y acciones. */
 export default function Header({ view, onChangeView, year, onChangeYear, onOpenSearch, onOpenSettings }: HeaderProps) {
+  const { data, setTheme } = useAgenda();
+  const theme = data.settings.theme ?? 'dark';
   return (
     <header className="app-header">
       <div className="app-header__brand">
@@ -67,7 +71,14 @@ export default function Header({ view, onChangeView, year, onChangeYear, onOpenS
 
       <div className="app-header__actions">
         <button className="btn btn--ghost" onClick={onOpenSearch}>
-          🔍 Buscar alumno
+          🔍 Buscar
+        </button>
+        <button
+          className="btn btn--ghost"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+        >
+          {theme === 'dark' ? '☀' : '🌙'}
         </button>
         <button className="btn btn--ghost" onClick={onOpenSettings}>
           ⚙ Configuración

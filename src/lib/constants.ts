@@ -34,8 +34,11 @@ export const STORAGE_KEY = 'agenda-padel:data';
 
 export const DEFAULT_PRICES: Prices = { grupal: 4000, indiv: 12000 };
 
-/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→…→v5. */
-export const DATA_VERSION = 5;
+/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→…→v6. */
+export const DATA_VERSION = 6;
+
+/** Días laborales por defecto: lunes a viernes (0=domingo … 6=sábado). */
+export const DEFAULT_WORKDAYS = [1, 2, 3, 4, 5];
 
 /** Duraciones de clase ofrecidas (minutos). La clase clásica es de 60. */
 export const DURATION_OPTIONS = [30, 45, 60, 90, 120];
@@ -74,4 +77,11 @@ export const MIGRATED_METHOD_ID = 'efectivo';
 export const DEFAULT_SETTINGS: Settings = {
   defaultMethodId: 'efectivo',
   packLowThreshold: 2,
+  workDays: [...DEFAULT_WORKDAYS],
+  startHour: 7,
+  endHour: 16,
+  theme: 'dark',
 };
+
+/** Días desde la última exportación para recordar un backup. */
+export const BACKUP_REMINDER_DAYS = 7;

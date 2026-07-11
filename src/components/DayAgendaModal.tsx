@@ -1,9 +1,10 @@
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
-import { HOURS, WEEKDAY_NAMES_LONG } from '../lib/constants';
+import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { dayTotals, classStatus, shareBreakdown, STATUS_LABEL, classKey } from '../lib/money';
+import { displayHoursForDay } from '../lib/schedule';
 import { participantName, classNames } from '../lib/students';
 import { describeDiscount } from '../lib/discount';
 import {
@@ -25,6 +26,7 @@ interface DayAgendaModalProps {
   onEditClass: (hour: number, entry: ClassEntry) => void;
   onRegisterPayment: (studentId: string, classRef: { day: string; hour: number }) => void;
   onMoveClass: (hour: number) => void;
+  onDuplicateClass: (hour: number) => void;
   onBlockDay: () => void;
 }
 
@@ -36,6 +38,7 @@ export default function DayAgendaModal({
   onEditClass,
   onRegisterPayment,
   onMoveClass,
+  onDuplicateClass,
   onBlockDay,
 }: DayAgendaModalProps) {
   const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass } = useAgenda();
@@ -44,6 +47,8 @@ export default function DayAgendaModal({
   const totals = dayTotals(data, ledger, day);
   const block = data.blocks[day];
   const holiday = holidayName(day);
+  // Franjas: horario configurado + cualquier hora con clase/bloqueo ese día.
+  const hours = displayHoursForDay(data.settings, slots, block);
   // Horas cuyas clases se solapan con otra (aviso informativo, no bloquea nada).
   const overlaps = computeDayOverlaps(slots);
 
@@ -85,7 +90,7 @@ export default function DayAgendaModal({
       </div>
 
       <div className="day-agenda__slots">
-        {HOURS.map((hour) => {
+        {hours.map((hour) => {
           const entry = slots?.[String(hour)];
           const blocked = isHourBlocked(block, hour);
 
@@ -157,6 +162,14 @@ export default function DayAgendaModal({
                   )}
                   <button className="icon-btn" onClick={() => onMoveClass(hour)} aria-label="Mover" title="Mover">
                     ↦
+                  </button>
+                  <button
+                    className="icon-btn"
+                    onClick={() => onDuplicateClass(hour)}
+                    aria-label="Duplicar"
+                    title="Duplicar"
+                  >
+                    ⧉
                   </button>
                   <button className="icon-btn" onClick={() => onEditClass(hour, entry)} aria-label="Editar">
                     ✎

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
 import type {
   AgendaData,
   ClassEntry,
@@ -72,6 +72,17 @@ interface AgendaContextValue {
   removeDayBlock: (day: string) => void;
   /** Copia las clases de una semana a otra. Devuelve cuántas copió/omitió. */
   copyWeek: (fromMonday: Date, toMonday: Date) => { copied: number; skipped: number };
+  // --- Calidad de vida (v6) ---
+  /** Cambia el tema visual (oscuro/claro) y lo recuerda. */
+  setTheme: (theme: 'dark' | 'light') => void;
+  /** Duplica una clase a otra franja. Devuelve false si el destino ya está ocupado. */
+  duplicateClass: (from: { day: string; hour: number }, to: { day: string; hour: number }) => boolean;
+  /** Info del último "deshacer" disponible (o null). */
+  undoInfo: { label: string; at: number } | null;
+  /** Deshace la última acción importante. */
+  runUndo: () => void;
+  /** Descarta el aviso de deshacer sin restaurar. */
+  dismissUndo: () => void;
   exportData: () => void;
   importData: (file: File) => Promise<void>;
 }
@@ -87,16 +98,28 @@ function todayISO(): string {
 
 export function AgendaProvider({ children }: { children: ReactNode }) {
   const [data, dispatch] = useReducer(agendaReducer, undefined, loadData);
+  // Snapshot para "deshacer" (1 nivel): estado previo a la última acción importante.
+  const [undoState, setUndoState] = useState<{ snapshot: AgendaData; label: string; at: number } | null>(null);
 
   // Persiste automáticamente en localStorage ante cualquier cambio de estado.
   useEffect(() => {
     saveData(data);
   }, [data]);
 
+  // Aplica el tema (oscuro/claro) al documento.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', data.settings.theme ?? 'dark');
+  }, [data.settings.theme]);
+
   // Recalcula todo el estado financiero derivado cuando cambian los datos.
   const ledger = useMemo(() => computeLedger(data), [data]);
 
   const value = useMemo<AgendaContextValue>(() => {
+    // Guarda el estado actual como punto de "deshacer" antes de una acción importante.
+    function capture(label: string) {
+      setUndoState({ snapshot: data, label, at: Date.now() });
+    }
+
     function addPayment(input: NewPaymentInput): Payment {
       const payment: Payment = {
         id: newId(),
@@ -117,11 +140,20 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       ledger,
       setPrices: (prices) => dispatch({ type: 'SET_PRICES', payload: prices }),
       upsertClass: (day, hour, entry) => dispatch({ type: 'UPSERT_CLASS', payload: { day, hour, entry } }),
-      deleteClass: (day, hour) => dispatch({ type: 'DELETE_CLASS', payload: { day, hour } }),
+      deleteClass: (day, hour) => {
+        capture('Clase borrada');
+        dispatch({ type: 'DELETE_CLASS', payload: { day, hour } });
+      },
       upsertStudent: (student) => dispatch({ type: 'UPSERT_STUDENT', payload: student }),
-      setStudentActive: (id, active) => dispatch({ type: 'SET_STUDENT_ACTIVE', payload: { id, active } }),
+      setStudentActive: (id, active) => {
+        capture(active ? 'Alumno reactivado' : 'Alumno archivado');
+        dispatch({ type: 'SET_STUDENT_ACTIVE', payload: { id, active } });
+      },
       addPayment,
-      deletePayment: (id) => dispatch({ type: 'DELETE_PAYMENT', payload: { id } }),
+      deletePayment: (id) => {
+        capture('Pago borrado');
+        dispatch({ type: 'DELETE_PAYMENT', payload: { id } });
+      },
 
       quickCollectClass: (day, hour) => {
         // Salda, para cada alumno con ficha de la clase, lo que le queda adeudado.
@@ -180,10 +212,16 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         };
         dispatch({ type: 'ADD_PACK', payload: { pack, payment } });
       },
-      deletePack: (id) => dispatch({ type: 'DELETE_PACK', payload: { id } }),
+      deletePack: (id) => {
+        capture('Pack borrado');
+        dispatch({ type: 'DELETE_PACK', payload: { id } });
+      },
 
       upsertExpense: (expense) => dispatch({ type: 'UPSERT_EXPENSE', payload: expense }),
-      deleteExpense: (id) => dispatch({ type: 'DELETE_EXPENSE', payload: { id } }),
+      deleteExpense: (id) => {
+        capture('Gasto borrado');
+        dispatch({ type: 'DELETE_EXPENSE', payload: { id } });
+      },
 
       setPaymentMethods: (methods) => dispatch({ type: 'SET_PAYMENT_METHODS', payload: methods }),
       setSettings: (settings) => dispatch({ type: 'SET_SETTINGS', payload: settings }),
@@ -205,11 +243,15 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
 
       updateSeries: (seriesId, patch) => dispatch({ type: 'UPDATE_SERIES', payload: { seriesId, patch } }),
-      deleteSeries: (seriesId) => dispatch({ type: 'DELETE_SERIES', payload: { seriesId } }),
+      deleteSeries: (seriesId) => {
+        capture('Serie borrada');
+        dispatch({ type: 'DELETE_SERIES', payload: { seriesId } });
+      },
 
       moveClass: (from, to) => {
         if (from.day === to.day && from.hour === to.hour) return true;
         if (data.days[to.day]?.[String(to.hour)]) return false; // destino ocupado
+        capture('Clase movida');
         dispatch({ type: 'MOVE_CLASS', payload: { from, to } });
         return true;
       },
@@ -249,13 +291,57 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         return { copied: placed.length, skipped };
       },
 
-      exportData: () => exportToFile(data),
+      // --- Calidad de vida (v6) ---
+      setTheme: (theme) => dispatch({ type: 'SET_SETTINGS', payload: { ...data.settings, theme } }),
+
+      duplicateClass: (from, to) => {
+        const entry = data.days[from.day]?.[String(from.hour)];
+        if (!entry) return false;
+        if (data.days[to.day]?.[String(to.hour)]) return false; // destino ocupado
+        capture('Clase duplicada');
+        // Copia alumnos, precio, descuentos, duración y contenido; sin serie, estado
+        // confirmada, sin adjuntos (son de esa sesión) y sin pagos propios.
+        dispatch({
+          type: 'ADD_CLASSES',
+          payload: {
+            entries: [
+              {
+                day: to.day,
+                hour: to.hour,
+                entry: {
+                  type: entry.type,
+                  participants: entry.participants,
+                  price: entry.price,
+                  duration: entry.duration,
+                  state: 'confirmada',
+                  content: entry.content,
+                },
+              },
+            ],
+          },
+        });
+        return true;
+      },
+
+      undoInfo: undoState ? { label: undoState.label, at: undoState.at } : null,
+      runUndo: () => {
+        if (!undoState) return;
+        dispatch({ type: 'LOAD', payload: undoState.snapshot });
+        setUndoState(null);
+      },
+      dismissUndo: () => setUndoState(null),
+
+      exportData: () => {
+        exportToFile(data);
+        // Registra la fecha del backup para el recordatorio.
+        dispatch({ type: 'SET_SETTINGS', payload: { ...data.settings, lastExportAt: new Date().toISOString() } });
+      },
       importData: async (file: File) => {
         const imported = await importFromFile(file);
         dispatch({ type: 'LOAD', payload: imported });
       },
     };
-  }, [data, ledger]);
+  }, [data, ledger, undoState]);
 
   return <AgendaContext.Provider value={value}>{children}</AgendaContext.Provider>;
 }

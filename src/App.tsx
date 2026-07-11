@@ -8,14 +8,17 @@ import FinanceView from './components/FinanceView';
 import StatsView from './components/StatsView';
 import DayAgendaModal from './components/DayAgendaModal';
 import ClassFormModal from './components/ClassFormModal';
-import SearchStudentModal from './components/SearchStudentModal';
+import GlobalSearchModal from './components/GlobalSearchModal';
 import SettingsModal from './components/SettingsModal';
 import StudentProfileModal from './components/StudentProfileModal';
 import StudentFormModal from './components/StudentFormModal';
 import PaymentFormModal from './components/PaymentFormModal';
 import MoveClassModal from './components/MoveClassModal';
+import DuplicateClassModal from './components/DuplicateClassModal';
 import CopyWeekModal from './components/CopyWeekModal';
 import BlockDayModal from './components/BlockDayModal';
+import UndoToast from './components/UndoToast';
+import ExportReminder from './components/ExportReminder';
 import { startOfWeek } from './lib/date';
 import type { ClassEntry, ClassFormTarget, Student } from './types';
 
@@ -35,6 +38,7 @@ function AppShell() {
     null
   );
   const [moveTarget, setMoveTarget] = useState<{ day: string; hour: number } | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<{ day: string; hour: number } | null>(null);
   const [copyWeekMonday, setCopyWeekMonday] = useState<Date | null>(null);
   const [blockDayKey, setBlockDayKey] = useState<string | null>(null);
 
@@ -55,6 +59,8 @@ function AppShell() {
         onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+
+      <ExportReminder />
 
       <main className="app__content">
         {view === 'anual' && <AnnualView year={year} onOpenDay={setOpenDay} />}
@@ -81,6 +87,7 @@ function AppShell() {
           onEditClass={(hour, entry) => openEditClass(openDay, hour, entry)}
           onRegisterPayment={(studentId, classRef) => setPayTarget({ studentId, classRef })}
           onMoveClass={(hour) => setMoveTarget({ day: openDay, hour })}
+          onDuplicateClass={(hour) => setDuplicateTarget({ day: openDay, hour })}
           onBlockDay={() => setBlockDayKey(openDay)}
         />
       )}
@@ -88,8 +95,12 @@ function AppShell() {
       {formTarget && <ClassFormModal target={formTarget} onClose={() => setFormTarget(null)} />}
 
       {searchOpen && (
-        <SearchStudentModal
+        <GlobalSearchModal
           onClose={() => setSearchOpen(false)}
+          onOpenStudent={(id) => {
+            setSearchOpen(false);
+            setProfileId(id);
+          }}
           onOpenDay={(day) => {
             setSearchOpen(false);
             setOpenDay(day);
@@ -123,11 +134,17 @@ function AppShell() {
 
       {moveTarget && <MoveClassModal from={moveTarget} onClose={() => setMoveTarget(null)} />}
 
+      {duplicateTarget && (
+        <DuplicateClassModal from={duplicateTarget} onClose={() => setDuplicateTarget(null)} />
+      )}
+
       {copyWeekMonday && (
         <CopyWeekModal fromMonday={startOfWeek(copyWeekMonday)} onClose={() => setCopyWeekMonday(null)} />
       )}
 
       {blockDayKey && <BlockDayModal day={blockDayKey} onClose={() => setBlockDayKey(null)} />}
+
+      <UndoToast />
     </div>
   );
 }

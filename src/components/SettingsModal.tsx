@@ -2,7 +2,12 @@ import { useRef, useState, type ChangeEvent } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { newId } from '../lib/id';
+import { DEFAULT_WORKDAYS } from '../lib/constants';
+import { WEEKDAY_OPTIONS } from '../lib/schedule';
 import type { PaymentMethod } from '../types';
+
+/** Horas seleccionables para el inicio/fin de la jornada. */
+const HOUR_CHOICES = Array.from({ length: 19 }, (_, i) => i + 5); // 5..23
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -17,7 +22,15 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [defaultMethodId, setDefaultMethodId] = useState(data.settings.defaultMethodId);
   const [packLow, setPackLow] = useState(data.settings.packLowThreshold);
   const [newMethod, setNewMethod] = useState('');
+  // Horario y días laborales (v6).
+  const [workDays, setWorkDays] = useState<number[]>(data.settings.workDays ?? [...DEFAULT_WORKDAYS]);
+  const [startH, setStartH] = useState(data.settings.startHour ?? 7);
+  const [endH, setEndH] = useState(data.settings.endHour ?? 16);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function toggleWorkDay(d: number) {
+    setWorkDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  }
 
   function addMethod() {
     const label = newMethod.trim();
@@ -47,7 +60,16 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     const validDefault = cleanMethods.some((m) => m.id === defaultMethodId)
       ? defaultMethodId
       : cleanMethods[0].id;
-    setSettings({ defaultMethodId: validDefault, packLowThreshold: Number(packLow) || 0 });
+    const end = endH >= startH ? endH : startH; // el fin no puede ser antes del inicio
+    // Se preservan los demás campos de settings (tema, lastExportAt) con el spread.
+    setSettings({
+      ...data.settings,
+      defaultMethodId: validDefault,
+      packLowThreshold: Number(packLow) || 0,
+      workDays: workDays.length ? [...workDays].sort((a, b) => a - b) : [...DEFAULT_WORKDAYS],
+      startHour: startH,
+      endHour: end,
+    });
     onClose();
   }
 
@@ -126,6 +148,52 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         <div className="class-form__row">
           <label>Avisar cuando al pack le queden ≤ estas clases</label>
           <input type="number" min={0} value={packLow} onChange={(e) => setPackLow(Number(e.target.value))} />
+        </div>
+
+        <hr className="settings__divider" />
+
+        <div className="settings__schedule">
+          <h3>Horario de trabajo</h3>
+          <p className="settings__hint">
+            Define las franjas de la agenda y sobre qué días se calcula la ocupación.
+          </p>
+          <div className="class-form__row">
+            <label>Días laborales</label>
+            <div className="workdays">
+              {WEEKDAY_OPTIONS.map((d) => (
+                <button
+                  key={d.value}
+                  type="button"
+                  className={`hour-chip${workDays.includes(d.value) ? ' hour-chip--on' : ''}`}
+                  onClick={() => toggleWorkDay(d.value)}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="class-form__row class-form__row--split">
+            <div>
+              <label>Desde</label>
+              <select className="select" value={startH} onChange={(e) => setStartH(Number(e.target.value))}>
+                {HOUR_CHOICES.map((h) => (
+                  <option key={h} value={h}>
+                    {h}:00
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label>Hasta (inclusive)</label>
+              <select className="select" value={endH} onChange={(e) => setEndH(Number(e.target.value))}>
+                {HOUR_CHOICES.map((h) => (
+                  <option key={h} value={h}>
+                    {h}:00
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         <div className="class-form__actions">

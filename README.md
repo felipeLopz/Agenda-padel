@@ -41,6 +41,25 @@ período (un mes o todo el año) y comparación con el período anterior:
 - Deudores: se **enlaza** al ranking que ya vive en Caja (no se duplica).
 - **Gráficos propios en SVG/CSS** (barras, línea, dona) con la paleta, sin librería.
 - **Exportar** el reporte del período a **CSV** (abre en Excel) y **PDF** (reusa jsPDF).
+- **Tasa de ocupación**: se calcula sobre los **días laborales** configurados (no todo el
+  calendario). Disponibles = días laborales del período × franjas por día − bloqueos.
+
+## Calidad de vida
+
+- **Horario configurable**: en Configuración se eligen los **días laborales** y la **franja
+  horaria** (inicio/fin). La agenda y la ocupación usan esa configuración. Salvaguarda: si
+  achicás el horario, las horas que ya tengan clase se siguen mostrando (no se esconden).
+- **Tema claro / oscuro**: interruptor (☀/🌙) en la barra superior; recuerda la elección.
+  El oscuro ("Estadio Nocturno") sigue por defecto.
+- **Buscador general**: un solo buscador encuentra **alumnos, clases y pagos** a la vez
+  (por nombre, tema de clase, concepto o monto) y navega al resultado.
+- **Deshacer**: tras una acción importante (borrar clase/serie/pago/pack/gasto, archivar
+  alumno, mover clase) aparece un aviso **"Deshacer"** por unos segundos que restaura el
+  estado previo (1 nivel).
+- **Duplicar clase**: botón ⧉ en la agenda del día para copiar una clase a otro día/hora
+  (alumnos, precio, descuentos, duración y contenido; arranca sin cobrar).
+- **Recordatorio de respaldo**: si hace más de 7 días que no exportás, un banner te ofrece
+  descargar una copia. (No guarda copias internas: empuja al export manual.)
 
 ## Contenido deportivo
 
@@ -192,11 +211,11 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
   los archivos viejos v1 del prototipo. Importar **reemplaza** todos los datos actuales
   del dispositivo — la app pide confirmación antes de hacerlo.
 
-### Formato del archivo (v5)
+### Formato del archivo (v6)
 
 ```jsonc
 {
-  "version": 5,
+  "version": 6,
   "prices": { "grupal": 4000, "indiv": 12000 },
   "students": {
     "<id>": {
@@ -271,14 +290,24 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
     { "id": "transferencia", "label": "Transferencia" },
     { "id": "mercadopago", "label": "Mercado Pago" }
   ],
-  "settings": { "defaultMethodId": "efectivo", "packLowThreshold": 2 }
+  "settings": {
+    "defaultMethodId": "efectivo",
+    "packLowThreshold": 2,
+    "workDays": [1, 2, 3, 4, 5],   // v6: días laborales (0=domingo … 6=sábado); default L-V
+    "startHour": 7,                // v6: inicio de la jornada
+    "endHour": 16,                 // v6: fin inclusive
+    "theme": "dark",               // v6: 'dark' | 'light'
+    "lastExportAt": "2026-07-11T00:00:00.000Z" // v6: para el recordatorio de respaldo
+  }
 }
 ```
+
+El PIN/bloqueo **no** se implementó (se descartó); no hay datos de PIN en el formato.
 
 Las "clases restantes" de un pack, los feriados y el estado cobrado/pendiente de cada
 clase **no se guardan**: se derivan (ver `src/lib/money.ts` y `src/lib/holidays.ts`).
 
-### Compatibilidad con los formatos viejos (v1 → v2 → v3 → v4 → v5)
+### Compatibilidad con los formatos viejos (v1 → v2 → v3 → v4 → v5 → v6)
 
 Al **cargar** el localStorage o **importar** un archivo, la app migra en cadena y sin
 perder datos (`src/lib/migrate.ts`, idempotente):
@@ -297,6 +326,10 @@ perder datos (`src/lib/migrate.ts`, idempotente):
   objetivos, notas de evolución y adjuntos del alumno). No agrega ni cambia nada más: los
   datos v4 quedan **idénticos** (los campos nuevos son opcionales y no afectan la plata ni
   las vistas). Las estadísticas solo **leen** datos ya existentes.
+- **v5 → v6** → completa en `settings` el horario y los días laborales (default lunes a
+  viernes, 7–16), el tema (oscuro) y `lastExportAt`. No toca clases, alumnos ni plata: los
+  datos v5 quedan **idénticos**. El cambio de la **ocupación** (ahora sobre días laborales)
+  es intencional, no afecta totales ni la lógica de plata.
 
 ## Decisiones tomadas
 
@@ -340,9 +373,17 @@ perder datos (`src/lib/migrate.ts`, idempotente):
 - **Gráficos propios sin librería** (SVG/CSS), para no sumar dependencias ni peso.
 - **"Ingresos" en Stats = cobrado sobre las clases del período** (mismo criterio que la
   barra anual), no lo percibido por fecha de pago; así coincide con lo que ya se ve.
-- **Ocupación = franjas usadas / disponibles**, con disponibles = días del período × 10
-  franjas − bloqueos. Cuenta todos los días del calendario (no solo hábiles).
+- **Ocupación = franjas usadas / disponibles**, con disponibles = **días laborales** del
+  período × franjas por día − bloqueos (v6). Los días laborales y el horario son
+  configurables en Configuración (default lunes a viernes, 7–16).
 - **Videos por enlace, no por archivo**: subir un video reventaría la cuota de
   localStorage; se guarda la URL. Las fotos sí se guardan comprimidas.
 - **El contenido/adjuntos de una clase son por-clase** (no se propagan al editar toda una
   serie recurrente).
+- **Tema oscuro por defecto** (el actual "Estadio Nocturno"); el claro es la alternativa.
+  La preferencia se guarda en `settings.theme` y se exporta con el resto.
+- **Deshacer de 1 nivel**: guarda un único snapshot de la última acción importante; hacer
+  otra acción reemplaza el snapshot anterior. Restaurar aplica `LOAD` del snapshot completo.
+- **Sin PIN/bloqueo** (descartado por pedido): no hay pantalla de bloqueo ni datos de PIN.
+- **Backup automático = recordatorio**, sin copias internas: un banner empuja al export
+  manual si hace >7 días. Es la opción más simple y no ocupa cuota de localStorage.

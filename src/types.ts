@@ -203,6 +203,16 @@ export interface Settings {
   defaultMethodId: string;
   /** Umbral de "pack por agotarse": avisar cuando queden <= estas clases. */
   packLowThreshold: number;
+  /** Días laborales (0=domingo … 6=sábado). Default L-V. Ausente = default. (v6) */
+  workDays?: number[];
+  /** Hora de inicio de la jornada (default 7). (v6) */
+  startHour?: number;
+  /** Hora de fin, inclusive (default 16). (v6) */
+  endHour?: number;
+  /** Tema visual: 'dark' (default) | 'light'. (v6) */
+  theme?: 'dark' | 'light';
+  /** Fecha ISO de la última exportación de respaldo (para el recordatorio). (v6) */
+  lastExportAt?: string;
 }
 
 export interface AgendaData {

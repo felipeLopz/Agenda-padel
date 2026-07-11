@@ -2247,6 +2247,121 @@ button {
 }
 
 /* -------------------------------------------------------------------------
+   Tanda 5 — calidad de vida: tema claro, deshacer, backup, buscador
+   ------------------------------------------------------------------------- */
+
+/* Tema CLARO (se activa con data-theme="light" en <html>). Mantiene la paleta. */
+:root[data-theme='light'] {
+  --bg: #eef2fb;
+  --bg-elevated: #ffffff;
+  --bg-card: #f1f4fb;
+  --bg-card-hover: #e6ecf8;
+  --border: rgba(30, 55, 130, 0.16);
+  --border-strong: rgba(30, 55, 130, 0.3);
+  --blue: #1e5bd6;
+  --blue-light: #2f6bff;
+  --orange: #e0730f;
+  --orange-light: #ef8a3a;
+  --green: #1f9d57;
+  --green-dim: rgba(31, 157, 87, 0.14);
+  --amber: #c2870f;
+  --amber-dim: rgba(194, 135, 15, 0.16);
+  --danger: #d43a4a;
+  --ink: #16203a;
+  --muted: #5a6488;
+  --shadow: 0 12px 32px rgba(30, 50, 120, 0.18);
+}
+:root[data-theme='light'] body {
+  background: radial-gradient(circle at top, #dbe4fa 0%, var(--bg) 55%);
+}
+
+/* Aviso "Deshacer" (toast) */
+.undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 8px 10px 8px 16px;
+  box-shadow: var(--shadow);
+  max-width: 92vw;
+}
+.undo-toast__label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.undo-toast__btn {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.undo-toast__close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Banner de recordatorio de respaldo */
+.export-reminder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--amber-dim);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  padding: 8px clamp(12px, 3vw, 32px);
+  font-size: 13px;
+}
+.export-reminder__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Buscador general: secciones */
+.search-group {
+  margin-top: 12px;
+}
+.search-group__title {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--blue-light);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.search-group .search-result {
+  margin-bottom: 6px;
+}
+.search-result__sub {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Días laborales (chips en Configuración) */
+.workdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* -------------------------------------------------------------------------
    Responsive: celular
    ------------------------------------------------------------------------- */
 

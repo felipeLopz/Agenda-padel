@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAgenda } from '../state/AgendaContext';
-import { MONTH_NAMES, HOURS } from '../lib/constants';
+import { MONTH_NAMES } from '../lib/constants';
 import { formatCurrency } from '../lib/format';
 import { displayName } from '../lib/students';
 import {
@@ -47,7 +47,7 @@ export default function StatsView({ onGoCaja }: StatsViewProps) {
   const classesByMonth = monthlyClasses(data, ledger, year);
   const years = yearsWithData(data);
 
-  const hourItems = HOURS.map((h, i) => ({ label: `${h}:00`, value: st.byHour[i] }));
+  const hourItems = st.byHour.map((b) => ({ label: `${b.hour}:00`, value: b.count }));
   const attendanceItems = st.attendance.slice(0, 10).map((a) => ({
     label: data.students[a.studentId] ? displayName(data.students[a.studentId]) : 'Alumno',
     value: a.count,

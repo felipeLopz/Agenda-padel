@@ -1,9 +1,10 @@
 import { Fragment, useState } from 'react';
 import { useAgenda } from '../state/AgendaContext';
-import { HOURS, WEEKDAY_NAMES_LONG } from '../lib/constants';
+import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { addDays, dayKey, isToday, startOfWeek } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { dayTotals, classStatus } from '../lib/money';
+import { displayHoursForDays } from '../lib/schedule';
 import { participantName } from '../lib/students';
 import {
   classDuration,
@@ -37,6 +38,9 @@ export default function WeeklyView({
   const { data, ledger, moveClass } = useAgenda();
   const monday = startOfWeek(anchor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const weekKeys = weekDays.map((d) => dayKey(d));
+  // Franjas de la grilla: horario configurado + cualquier hora con clase en la semana.
+  const hours = displayHoursForDays(data.settings, data, weekKeys);
   // Solapamientos por día de la semana (aviso informativo, no bloquea).
   const overlapsByDay: Record<string, Set<number>> = {};
   for (const date of weekDays) {
@@ -106,7 +110,7 @@ export default function WeeklyView({
           );
         })}
 
-        {HOURS.map((hour) => (
+        {hours.map((hour) => (
           <Fragment key={hour}>
             <div className="week-grid__hour">{hour}:00</div>
             {weekDays.map((date) => {

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
-import { HOURS, WEEKDAY_NAMES_LONG } from '../lib/constants';
+import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
+import { displayHoursForDay } from '../lib/schedule';
 import { cleanBlock } from '../lib/classMeta';
 
 interface BlockDayModalProps {
@@ -14,6 +15,7 @@ interface BlockDayModalProps {
 export default function BlockDayModal({ day, onClose }: BlockDayModalProps) {
   const { data, setDayBlock, removeDayBlock } = useAgenda();
   const existing = data.blocks[day];
+  const scheduleHrs = displayHoursForDay(data.settings, data.days[day], existing);
   const [fullDay, setFullDay] = useState(Boolean(existing?.fullDay));
   const [hours, setHours] = useState<number[]>(existing?.hours ?? []);
   const [reason, setReason] = useState(existing?.reason ?? '');
@@ -49,7 +51,7 @@ export default function BlockDayModal({ day, onClose }: BlockDayModalProps) {
           <div className="class-form__row">
             <label>O bloquear franjas puntuales</label>
             <div className="hour-grid">
-              {HOURS.map((h) => (
+              {scheduleHrs.map((h) => (
                 <button
                   key={h}
                   type="button"
