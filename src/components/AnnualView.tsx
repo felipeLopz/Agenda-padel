@@ -3,6 +3,7 @@ import { MONTH_NAMES } from '../lib/constants';
 import { formatCurrency } from '../lib/format';
 import { yearTotals } from '../lib/money';
 import MonthColumn from './MonthColumn';
+import CountUp from './CountUp';
 
 interface AnnualViewProps {
   year: number;
@@ -19,25 +20,33 @@ export default function AnnualView({ year, onOpenDay }: AnnualViewProps) {
       <div className="year-summary">
         <div className="year-summary__item">
           <span className="year-summary__label">Clases</span>
-          <span className="year-summary__value">{totals.classes}</span>
+          <span className="year-summary__value">
+            <CountUp value={totals.classes} />
+          </span>
         </div>
         <div className="year-summary__item">
           <span className="year-summary__label">Alumnos atendidos</span>
-          <span className="year-summary__value">{totals.students}</span>
+          <span className="year-summary__value">
+            <CountUp value={totals.students} />
+          </span>
         </div>
         <div className="year-summary__item">
           <span className="year-summary__label">Cobrado</span>
-          <span className="year-summary__value year-summary__value--paid">{formatCurrency(totals.collected)}</span>
+          <span className="year-summary__value year-summary__value--paid">
+            <CountUp value={totals.collected} format={formatCurrency} />
+          </span>
         </div>
         <div className="year-summary__item">
           <span className="year-summary__label">Pendiente</span>
           <span className="year-summary__value year-summary__value--pending">
-            {formatCurrency(totals.pending)}
+            <CountUp value={totals.pending} format={formatCurrency} />
           </span>
         </div>
         <div className="year-summary__item">
           <span className="year-summary__label">Total</span>
-          <span className="year-summary__value">{formatCurrency(totals.total)}</span>
+          <span className="year-summary__value">
+            <CountUp value={totals.total} format={formatCurrency} />
+          </span>
         </div>
       </div>
 

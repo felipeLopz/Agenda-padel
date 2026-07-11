@@ -1,5 +1,12 @@
 // Gráficos propios, sin librería: barras (CSS), línea y dona (SVG). Usan la paleta
 // del tema vía variables CSS y son responsivos (viewBox / anchos relativos).
+//
+// Tanda 2 de efectos ("datos vivos"): al montarse, las barras crecen desde 0, la línea
+// se traza (stroke-dashoffset) y la dona aparece con un pop. Todo es SOLO visual; los
+// valores no cambian. Se reduce solo con prefers-reduced-motion (media query en el CSS).
+
+import { useEffect, useState } from 'react';
+import { prefersReducedMotion } from '../lib/motion';
 
 interface BarItem {
   label: string;
@@ -16,6 +23,13 @@ export function HBarChart({
   items: BarItem[];
   formatValue?: (v: number) => string;
 }) {
+  // Al montar, las barras crecen desde 0 hasta su ancho (transición CSS en .hbar__fill).
+  const [grown, setGrown] = useState(() => prefersReducedMotion());
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGrown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
     <div className="hbar">
@@ -27,7 +41,7 @@ export function HBarChart({
           <span className="hbar__track">
             <span
               className="hbar__fill"
-              style={{ width: `${(it.value / max) * 100}%`, background: it.color ?? 'var(--blue)' }}
+              style={{ width: grown ? `${(it.value / max) * 100}%` : '0%', background: it.color ?? 'var(--blue)' }}
             />
           </span>
           <span className="hbar__value">{formatValue(it.value)}</span>
@@ -64,10 +78,11 @@ export function LineChart({
 
   return (
     <svg className="linechart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img">
-      <polygon points={areaPoints} fill="var(--blue)" opacity="0.12" />
-      <polyline points={points} fill="none" stroke="var(--blue)" strokeWidth="2" />
+      <polygon className="linechart__area" points={areaPoints} fill="var(--blue)" opacity="0.12" />
+      {/* pathLength=1 normaliza el largo → la línea se "dibuja" con stroke-dashoffset (CSS). */}
+      <polyline className="linechart__line" points={points} pathLength={1} fill="none" stroke="var(--blue)" strokeWidth="2" />
       {values.map((v, i) => (
-        <circle key={i} cx={x(i)} cy={y(v)} r={i === maxIdx ? 3.2 : 2} fill="var(--blue-light)" />
+        <circle key={i} className="linechart__dot" cx={x(i)} cy={y(v)} r={i === maxIdx ? 3.2 : 2} fill="var(--blue-light)" />
       ))}
       {/* Valor máximo anotado. */}
       {max > 0 && (
@@ -143,5 +158,23 @@ export function Donut({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Barra de ocupación: se llena progresivamente desde 0 hasta `rate` (0..1) al aparecer.
+ * Solo visual; el porcentaje real se muestra aparte como texto.
+ */
+export function OccupancyBar({ rate }: { rate: number }) {
+  const [w, setW] = useState(() => (prefersReducedMotion() ? rate : 0));
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setW(rate));
+    return () => cancelAnimationFrame(id);
+  }, [rate]);
+  const pct = Math.max(0, Math.min(100, w * 100));
+  return (
+    <span className="occupancy-bar" aria-hidden="true">
+      <span className="occupancy-bar__fill" style={{ width: `${pct}%` }} />
+    </span>
   );
 }

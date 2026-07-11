@@ -3,6 +3,7 @@ import { useAgenda } from '../state/AgendaContext';
 import { MONTH_NAMES } from '../lib/constants';
 import { formatCurrency } from '../lib/format';
 import { displayName } from '../lib/students';
+import CountUp from './CountUp';
 import {
   incomeByMethod,
   monthProjection,
@@ -68,15 +69,21 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
           <h3>Proyección del mes</h3>
           <div className="finance-stat">
             <span>Facturación agendada</span>
-            <strong>{formatCurrency(projection.total)}</strong>
+            <strong>
+              <CountUp value={projection.total} format={formatCurrency} />
+            </strong>
           </div>
           <div className="finance-stat">
             <span className="text-paid">Ya cobrado</span>
-            <strong className="text-paid">{formatCurrency(projection.collected)}</strong>
+            <strong className="text-paid">
+              <CountUp value={projection.collected} format={formatCurrency} />
+            </strong>
           </div>
           <div className="finance-stat">
             <span className="text-pending">Pendiente</span>
-            <strong className="text-pending">{formatCurrency(projection.pending)}</strong>
+            <strong className="text-pending">
+              <CountUp value={projection.pending} format={formatCurrency} />
+            </strong>
           </div>
         </section>
 
@@ -85,19 +92,27 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
           <h3>Ganancia neta</h3>
           <div className="finance-stat">
             <span>Ingresos ({MONTH_NAMES[month]})</span>
-            <strong className="text-paid">{formatCurrency(profitMonth.income)}</strong>
+            <strong className="text-paid">
+              <CountUp value={profitMonth.income} format={formatCurrency} />
+            </strong>
           </div>
           <div className="finance-stat">
             <span>Gastos ({MONTH_NAMES[month]})</span>
-            <strong className="text-pending">{formatCurrency(profitMonth.expenses)}</strong>
+            <strong className="text-pending">
+              <CountUp value={profitMonth.expenses} format={formatCurrency} />
+            </strong>
           </div>
           <div className="finance-stat finance-stat--strong">
             <span>Neto del mes</span>
-            <strong>{formatCurrency(profitMonth.net)}</strong>
+            <strong>
+              <CountUp value={profitMonth.net} format={formatCurrency} />
+            </strong>
           </div>
           <div className="finance-stat finance-stat--strong">
             <span>Neto del año {year}</span>
-            <strong>{formatCurrency(profitYear.net)}</strong>
+            <strong>
+              <CountUp value={profitYear.net} format={formatCurrency} />
+            </strong>
           </div>
         </section>
 
@@ -117,7 +132,9 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
           <h3>Deudores</h3>
           <div className="finance-stat finance-stat--strong">
             <span>Total adeudado</span>
-            <strong className="text-pending">{formatCurrency(ledger.totalOwed)}</strong>
+            <strong className="text-pending">
+              <CountUp value={ledger.totalOwed} format={formatCurrency} />
+            </strong>
           </div>
           <div className="debtors-list">
             {ledger.debtors.map((d) => {

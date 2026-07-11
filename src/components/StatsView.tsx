@@ -13,7 +13,8 @@ import {
   type Period,
 } from '../lib/stats';
 import { downloadReportCSV, downloadReportPDF } from '../lib/report';
-import { HBarChart, LineChart, Donut } from './Charts';
+import { HBarChart, LineChart, Donut, OccupancyBar } from './Charts';
+import CountUp from './CountUp';
 
 interface StatsViewProps {
   /** Ir a la pestaña Caja (para el ranking de deudores completo). */
@@ -94,37 +95,47 @@ export default function StatsView({ onGoCaja }: StatsViewProps) {
         </div>
       </div>
 
-      {/* Tarjetas de titulares con comparación. */}
-      <div className="stats-cards">
+      {/* Tarjetas de titulares con comparación. La `key` por período hace que los
+          contadores vuelvan a subir y los gráficos se redibujen al cambiar de período. */}
+      <div className="stats-cards" key={`cards-${year}-${month}`}>
         <div className="stat-card">
           <span className="stat-card__label">Clases</span>
-          <span className="stat-card__value">{st.totals.classes}</span>
+          <span className="stat-card__value">
+            <CountUp value={st.totals.classes} />
+          </span>
           <Delta cmp={cmp.classes} />
         </div>
         <div className="stat-card">
           <span className="stat-card__label">Cobrado</span>
-          <span className="stat-card__value text-paid">{formatCurrency(st.totals.collected)}</span>
+          <span className="stat-card__value text-paid">
+            <CountUp value={st.totals.collected} format={formatCurrency} />
+          </span>
           <Delta cmp={cmp.income} />
         </div>
         <div className="stat-card">
           <span className="stat-card__label">Pendiente</span>
-          <span className="stat-card__value text-pending">{formatCurrency(st.totals.pending)}</span>
+          <span className="stat-card__value text-pending">
+            <CountUp value={st.totals.pending} format={formatCurrency} />
+          </span>
         </div>
         <div className="stat-card">
           <span className="stat-card__label">Ocupación</span>
           <span className="stat-card__value">{(st.occupancy.rate * 100).toFixed(1)}%</span>
+          <OccupancyBar rate={st.occupancy.rate} />
           <span className="delta delta--none">
             {st.occupancy.used}/{st.occupancy.available} franjas
           </span>
         </div>
         <div className="stat-card">
           <span className="stat-card__label">Prom. x grupal</span>
-          <span className="stat-card__value">{st.avgGroupSize.toFixed(1)}</span>
+          <span className="stat-card__value">
+            <CountUp value={st.avgGroupSize} format={(n) => n.toFixed(1)} />
+          </span>
           <span className="delta delta--none">alumnos por clase</span>
         </div>
       </div>
 
-      <div className="stats-grid">
+      <div className="stats-grid" key={`grid-${year}-${month}`}>
         {/* Grupal vs individual */}
         <section className="finance-card">
           <h3>Grupales vs individuales</h3>
