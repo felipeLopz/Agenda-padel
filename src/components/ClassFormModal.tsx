@@ -5,7 +5,7 @@ import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS } from '../lib/constants';
 import { suggestedPrice } from '../lib/pricing';
 import { participantName } from '../lib/students';
-import { classDuration, classState, STATE_LABEL, STATES } from '../lib/classMeta';
+import { classDuration, classState, findOverlapFor, STATE_LABEL, STATES, timeRange } from '../lib/classMeta';
 import type { RecurrenceInput } from '../lib/recurrence';
 import type { ClassEntry, ClassFormTarget, ClassParticipant, ClassState, ClassType } from '../types';
 import StudentPicker from './StudentPicker';
@@ -88,6 +88,20 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
     if (valid.length === 0) {
       alert('Ingresá al menos un alumno.');
       return;
+    }
+
+    // Aviso blando de solapamiento: si la clase (por su duración) se pisa con otra
+    // del mismo día, avisamos pero dejamos guardar igual. Las canceladas no cuentan.
+    if (state !== 'cancelada') {
+      const conflictHour = findOverlapFor(data.days[day], hour, duration);
+      if (conflictHour != null) {
+        const other = data.days[day]?.[String(conflictHour)];
+        const otherRange = other ? timeRange(conflictHour, other) : `${conflictHour}:00`;
+        const ok = confirm(
+          `⚠ Esta clase se solapa en el horario con la de las ${otherRange}. ¿Guardar igual?`
+        );
+        if (!ok) return;
+      }
     }
     const finalList = (type === 'indiv' ? valid.slice(0, 1) : valid).map((p) => ({
       studentId: p.studentId,
@@ -234,6 +248,9 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
           </select>
           {state === 'cancelada' && (
             <span className="discount-editor__hint">Una clase cancelada no genera deuda ni cobro.</span>
+          )}
+          {state === 'ausente' && (
+            <span className="discount-editor__hint">El alumno no vino, pero la clase se cobra igual.</span>
           )}
         </div>
 

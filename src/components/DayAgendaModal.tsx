@@ -6,7 +6,15 @@ import { formatCurrency } from '../lib/format';
 import { dayTotals, classStatus, shareBreakdown, STATUS_LABEL, classKey } from '../lib/money';
 import { participantName, classNames } from '../lib/students';
 import { describeDiscount } from '../lib/discount';
-import { classState, isChargeable, isHourBlocked, STATE_LABEL, timeRange } from '../lib/classMeta';
+import {
+  classState,
+  computeDayOverlaps,
+  isChargeable,
+  isHourBlocked,
+  STATE_LABEL,
+  stateMoneyNote,
+  timeRange,
+} from '../lib/classMeta';
 import { holidayName } from '../lib/holidays';
 import type { ClassEntry } from '../types';
 
@@ -36,6 +44,8 @@ export default function DayAgendaModal({
   const totals = dayTotals(data, ledger, day);
   const block = data.blocks[day];
   const holiday = holidayName(day);
+  // Horas cuyas clases se solapan con otra (aviso informativo, no bloquea nada).
+  const overlaps = computeDayOverlaps(slots);
 
   function handleDelete(hour: number, entry: ClassEntry) {
     if (entry.seriesId) {
@@ -104,15 +114,30 @@ export default function DayAgendaModal({
           const status = classStatus(ledger, day, hour);
           const acc = ledger.byClass[classKey(day, hour)];
           const hasDiscount = acc ? acc.collected + acc.pending < entry.price - 0.5 : false;
+          const moneyNote = stateMoneyNote(state);
+          const overlapped = overlaps.has(hour);
 
           return (
-            <div key={hour} className={`day-slot day-slot--filled day-slot--state-${state}`}>
+            <div
+              key={hour}
+              className={`day-slot day-slot--filled day-slot--state-${state}${overlapped ? ' day-slot--overlap' : ''}`}
+            >
               <div className="day-slot__head">
                 <span className="day-slot__hour">{timeRange(hour, entry)}</span>
+                {overlapped && (
+                  <span className="overlap-tag" title="Esta clase se pisa en el horario con otra del día">
+                    ⚠ se solapa
+                  </span>
+                )}
                 <span className={`badge badge--${entry.type}`}>
                   {entry.type === 'grupal' ? 'Grupal' : 'Individual'}
                 </span>
-                {state !== 'confirmada' && <span className={`chip chip--state-${state}`}>{STATE_LABEL[state]}</span>}
+                {state !== 'confirmada' && (
+                  <span className={`chip chip--state-${state}`}>
+                    {STATE_LABEL[state]}
+                    {moneyNote && <span className={`state-note state-note--${moneyNote.kind}`}> — {moneyNote.text}</span>}
+                  </span>
+                )}
                 {entry.seriesId && <span className="serie-tag">serie</span>}
                 <span className="day-slot__price">
                   {formatCurrency(entry.price)}
