@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useAuth } from '../state/AuthContext';
 import { newId } from '../lib/id';
 import { DEFAULT_WORKDAYS } from '../lib/constants';
 import { WEEKDAY_OPTIONS } from '../lib/schedule';
@@ -16,6 +17,7 @@ interface SettingsModalProps {
 /** Precios, medios de pago, ajustes de packs y respaldo (exportar/importar JSON). */
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const { data, setPrices, setPaymentMethods, setSettings, exportData, importData } = useAgenda();
+  const { user, signOut } = useAuth();
   const [grupal, setGrupal] = useState(data.prices.grupal);
   const [indiv, setIndiv] = useState(data.prices.indiv);
   const [methods, setMethods] = useState<PaymentMethod[]>(data.paymentMethods);
@@ -228,6 +230,25 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               onChange={handleFileChange}
             />
           </div>
+        </div>
+
+        <hr className="settings__divider" />
+
+        <div className="settings__account">
+          <h3>Cuenta (sincronización)</h3>
+          <p className="settings__hint">
+            {user ? (
+              <>
+                Sesión iniciada como <strong>{user.email}</strong>. Tus datos se sincronizan en la nube y
+                aparecen en todos tus dispositivos.
+              </>
+            ) : (
+              'Sin sesión iniciada.'
+            )}
+          </p>
+          <button className="btn btn--ghost" onClick={signOut}>
+            Cerrar sesión
+          </button>
         </div>
       </div>
     </Modal>

@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AgendaProvider } from './state/AgendaContext';
+import { AuthProvider, useAuth } from './state/AuthContext';
+import AuthScreen from './components/AuthScreen';
+import { STORAGE_KEY } from './lib/constants';
 import Header, { type ViewMode } from './components/Header';
 import AnnualView from './components/AnnualView';
 import WeeklyView from './components/WeeklyView';
@@ -149,10 +152,45 @@ function AppShell() {
   );
 }
 
-export default function App() {
+/** Portero (Tanda 6): sin sesión muestra el login; con sesión, la app sincronizada. */
+function Root() {
+  const { session, loading } = useAuth();
+
+  // Aplica el tema guardado (claro/oscuro) también en el login, antes de cargar la app.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const theme = raw ? (JSON.parse(raw)?.settings?.theme as string | undefined) : undefined;
+      document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
+    } catch {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card auth-card--loading">
+          <span className="auth-card__logo">🎾</span>
+          <p className="auth-card__sub">Cargando…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) return <AuthScreen />;
+
   return (
     <AgendaProvider>
       <AppShell />
     </AgendaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Root />
+    </AuthProvider>
   );
 }

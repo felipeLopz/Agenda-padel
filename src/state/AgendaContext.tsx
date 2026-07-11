@@ -1,4 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type {
   AgendaData,
   ClassEntry,
@@ -17,6 +27,15 @@ import { computeLedger, dayKeyToISO, type Ledger } from '../lib/money';
 import { newId } from '../lib/id';
 import { addDays, dayKey } from '../lib/date';
 import { seriesDayKeys, type RecurrenceInput } from '../lib/recurrence';
+import { useAuth } from './AuthContext';
+import { isSupabaseConfigured } from '../lib/supabase';
+import {
+  decideInitialSync,
+  hasMeaningfulData,
+  pushRemote,
+  setLocalOwnerId,
+  setLocalUpdatedAt,
+} from '../lib/cloudSync';
 
 /** Datos para registrar un pago manual (los ids/fechas se completan solos). */
 export interface NewPaymentInput {
@@ -101,10 +120,103 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
   // Snapshot para "deshacer" (1 nivel): estado previo a la última acción importante.
   const [undoState, setUndoState] = useState<{ snapshot: AgendaData; label: string; at: number } | null>(null);
 
-  // Persiste automáticamente en localStorage ante cualquier cambio de estado.
+  // --- Sincronización en la nube (Tanda 6) ---
+  const { user } = useAuth();
+  // Bandera anti-loop: la sincronización inicial (bajar/migrar) NO debe disparar una
+  // subida. Se habilita recién cuando termina el arranque.
+  const syncReady = useRef(false);
+  // Evita el "eco": cuando la app adopta los datos de la nube, ese cambio no se re-sube.
+  const skipNextPush = useRef(false);
+  // Última versión de los datos, para usar en callbacks sin closures viejos.
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+  // Debounce de la subida + marca de "quedó algo sin subir" (para reintentar).
+  const pushTimer = useRef<number | null>(null);
+  const pendingPush = useRef(false);
+
+  const queuePush = useCallback(
+    (nextData: AgendaData, updatedAt: string) => {
+      if (!isSupabaseConfigured || !user) return;
+      if (pushTimer.current !== null) clearTimeout(pushTimer.current);
+      pushTimer.current = window.setTimeout(async () => {
+        pushTimer.current = null;
+        const ok = await pushRemote(user.id, nextData, updatedAt);
+        if (ok) setLocalOwnerId(user.id);
+        pendingPush.current = !ok; // si falló (sin internet), queda pendiente
+      }, 1500);
+    },
+    [user]
+  );
+
+  // Persiste en localStorage ante cualquier cambio (caché siempre disponible) y, si
+  // el arranque ya terminó, sube el cambio a la nube con un pequeño retardo.
   useEffect(() => {
     saveData(data);
-  }, [data]);
+    if (!syncReady.current) return; // durante hidratación/arranque no se sube
+    if (skipNextPush.current) {
+      skipNextPush.current = false; // este cambio vino de la nube: no re-subir
+      return;
+    }
+    const now = new Date().toISOString();
+    setLocalUpdatedAt(now);
+    queuePush(data, now);
+  }, [data, queuePush]);
+
+  // Arranque: decide qué gana (nube vs este dispositivo) y aplica sin pisar a ciegas.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user) {
+      syncReady.current = true;
+      return;
+    }
+    let cancelled = false;
+    syncReady.current = false;
+    (async () => {
+      const decision = await decideInitialSync(user.id, dataRef.current);
+      if (cancelled) return;
+      switch (decision.action) {
+        case 'adopt': // gana la nube: se cargan sus datos en la app
+          setLocalOwnerId(user.id);
+          setLocalUpdatedAt(decision.updatedAt);
+          skipNextPush.current = true;
+          dispatch({ type: 'LOAD', payload: decision.data });
+          break;
+        case 'push': // gana lo local (o migración inicial): se sube
+          setLocalOwnerId(user.id);
+          setLocalUpdatedAt(decision.updatedAt);
+          await pushRemote(user.id, dataRef.current, decision.updatedAt);
+          break;
+        case 'noop': // todo vacío: solo se marca el dueño de la caché
+          setLocalOwnerId(user.id);
+          break;
+        case 'offline': // sin conexión: se sigue con lo local y se reintenta luego
+          pendingPush.current = hasMeaningfulData(dataRef.current);
+          break;
+      }
+      syncReady.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Al recuperar la conexión, si quedó algo sin subir, se reintenta.
+  useEffect(() => {
+    function onOnline() {
+      if (!syncReady.current || !pendingPush.current || !user) return;
+      queuePush(dataRef.current, new Date().toISOString());
+    }
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [user, queuePush]);
+
+  // Limpieza del retardo pendiente al desmontar (p. ej. al cerrar sesión).
+  useEffect(() => {
+    return () => {
+      if (pushTimer.current !== null) clearTimeout(pushTimer.current);
+    };
+  }, []);
 
   // Aplica el tema (oscuro/claro) al documento.
   useEffect(() => {
