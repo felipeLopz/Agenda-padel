@@ -11,36 +11,47 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Si se registró y hay que confirmar el correo: guardamos a qué email se envió.
+  const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setInfo(null);
-    if (!email.trim() || !password) {
-      setError('Completá email y contraseña.');
+    setConfirmEmail(null);
+    const mail = email.trim();
+    if (!mail || !password) {
+      setError('Completá tu email y tu contraseña.');
       return;
     }
     setBusy(true);
-    const action = mode === 'login' ? signIn : signUp;
-    const { error: err } = await action(email.trim(), password);
+
+    if (mode === 'login') {
+      const { error: err } = await signIn(mail, password);
+      setBusy(false);
+      if (err) setError(err);
+      return;
+    }
+
+    const { error: err, needsConfirmation } = await signUp(mail, password);
     setBusy(false);
     if (err) {
       setError(err);
       return;
     }
-    if (mode === 'signup') {
-      // Con "Confirm email" desactivado, el ingreso es automático. Si estuviera
-      // activado, avisamos para que el usuario sepa qué pasa.
-      setInfo('Cuenta creada. Si no entrás en unos segundos, revisá la confirmación de email en Supabase.');
+    if (needsConfirmation) {
+      // Hay que confirmar el correo. Mostramos el aviso y dejamos el formulario en
+      // modo "Iniciar sesión" para cuando el usuario vuelva ya confirmado.
+      setConfirmEmail(mail);
+      setMode('login');
     }
+    // Si no hace falta confirmar, la app entra sola (cambia la sesión).
   }
 
   function toggleMode() {
     setMode(mode === 'login' ? 'signup' : 'login');
     setError(null);
-    setInfo(null);
+    setConfirmEmail(null);
   }
 
   return (
@@ -57,9 +68,21 @@ export default function AuthScreen() {
         </div>
 
         {!configured && (
-          <p className="auth-card__error">
-            Falta configurar Supabase: completá el archivo .env con VITE_SUPABASE_URL y VITE_SUPABASE_KEY.
-          </p>
+          <p className="auth-card__error">No pudimos conectar con el servidor. Probá de nuevo en un rato.</p>
+        )}
+
+        {/* Aviso destacado tras registrarse: hay que confirmar el correo. */}
+        {confirmEmail && (
+          <div className="auth-confirm" role="status">
+            <span className="auth-confirm__icon" aria-hidden>
+              📩
+            </span>
+            <p className="auth-confirm__title">¡Cuenta creada!</p>
+            <p className="auth-confirm__text">
+              Te enviamos un correo a <strong>{confirmEmail}</strong>. Revisá tu casilla (y la carpeta de spam)
+              y confirmá tu cuenta antes de iniciar sesión.
+            </p>
+          </div>
         )}
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -87,7 +110,6 @@ export default function AuthScreen() {
           </div>
 
           {error && <p className="auth-card__error">{error}</p>}
-          {info && <p className="auth-card__info">{info}</p>}
 
           <button className="btn btn--primary auth-form__submit" type="submit" disabled={busy || !configured}>
             {busy ? 'Un momento…' : mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}

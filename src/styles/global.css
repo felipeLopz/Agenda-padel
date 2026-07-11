@@ -2599,6 +2599,34 @@ textarea:focus {
   padding: 9px 11px;
 }
 
+/* Aviso destacado tras registrarse ("revisá tu correo para confirmar"). */
+.auth-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 16px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--green-dim);
+  border: 1px solid var(--green);
+}
+.auth-confirm__icon {
+  font-size: 30px;
+}
+.auth-confirm__title {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--green);
+}
+.auth-confirm__text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 /* -------------------------------------------------------------------------
    Ajustes v7 — categorías/nivel (filtros) y quitar alumno del turno
    ------------------------------------------------------------------------- */
