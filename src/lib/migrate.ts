@@ -25,6 +25,7 @@ import type {
   PaymentMethod,
   Prices,
   ProgressNote,
+  Reminder,
   Settings,
   Student,
   StudentLevel,
@@ -65,6 +66,7 @@ interface V2Entry {
   seriesId?: string;
   content?: string[];
   attachments?: Attachment[];
+  reminder?: Reminder;
 }
 interface V2Intermediate {
   prices: Prices;
@@ -150,6 +152,16 @@ function parseProgressNotes(raw: unknown): ProgressNote[] | undefined {
     })
     .filter((n): n is ProgressNote => n !== null);
   return list.length > 0 ? list : undefined;
+}
+
+/** Sanea un recordatorio de un turno (v9). undefined si no tiene nota o fecha. */
+function parseReminder(raw: unknown): Reminder | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Partial<Reminder>;
+  const text = typeof r.text === 'string' ? r.text.trim() : '';
+  const remindAt = typeof r.remindAt === 'string' ? r.remindAt.trim() : '';
+  if (!text || !remindAt) return undefined;
+  return { text, remindAt, done: r.done === true };
 }
 
 /** Sanea una ficha que viene de un JSON externo. Devuelve null si es inservible. */
@@ -243,6 +255,7 @@ function normalizeToV2(raw: unknown): V2Intermediate {
           seriesId?: unknown;
           content?: unknown;
           attachments?: unknown;
+          reminder?: unknown;
         };
         const type: ClassType = entry.type === 'indiv' ? 'indiv' : 'grupal';
 
@@ -297,6 +310,7 @@ function normalizeToV2(raw: unknown): V2Intermediate {
           seriesId: typeof entry.seriesId === 'string' ? entry.seriesId : undefined,
           content: parseStringList(entry.content),
           attachments: parseAttachments(entry.attachments),
+          reminder: parseReminder(entry.reminder),
         };
       }
 
@@ -452,6 +466,7 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
         seriesId: entry.seriesId,
         content: entry.content,
         attachments: entry.attachments,
+        reminder: entry.reminder,
       };
     }
     days[dKey] = clean;
@@ -523,12 +538,12 @@ function normalizeBlocks(raw: unknown): Record<string, DayBlock> {
 }
 
 /**
- * Punto de entrada: normaliza cualquier JSON (v1..v8) a un AgendaData v8 completo.
+ * Punto de entrada: normaliza cualquier JSON (v1..v9) a un AgendaData v9 completo.
  * Encadena las migraciones anteriores; migrateV2toV3 ya emite la versión actual
- * (DATA_VERSION = 8) con todos los campos nuevos conservados (contenido/adjuntos,
- * objetivos/notas, horario/días laborales/tema, categoría/nivel de pádel, y ahora el
- * precio propio por alumno en grupales, migrando el precio repartido). No descarta nada.
+ * (DATA_VERSION = 9) con todos los campos nuevos conservados (contenido/adjuntos,
+ * objetivos/notas, horario/días laborales/tema, categoría/nivel, precio por alumno, y
+ * ahora el recordatorio por turno). Idempotente, no descarta nada.
  */
-export function normalizeToV8(raw: unknown): AgendaData {
+export function normalizeToV9(raw: unknown): AgendaData {
   return migrateV2toV3(normalizeToV2(raw), raw);
 }

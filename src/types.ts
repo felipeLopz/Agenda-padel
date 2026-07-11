@@ -116,6 +116,19 @@ export interface ClassParticipant {
 /** Estado de una clase en la agenda (distinto del estado de cobro, que se deriva). */
 export type ClassState = 'confirmada' | 'tentativa' | 'cancelada' | 'ausente';
 
+/**
+ * Recordatorio que el profe le pone a un turno (v9). Se avisa DENTRO de la app.
+ * Va atado a la clase: se mueve con ella y se borra con ella.
+ */
+export interface Reminder {
+  /** Nota libre (ej: "cobrarle a Juan lo que debe", "llevar pelotas nuevas"). */
+  text: string;
+  /** Fecha/hora del aviso, en formato local "YYYY-MM-DDTHH:mm". */
+  remindAt: string;
+  /** Marcado como visto/hecho: deja de aparecer como pendiente. */
+  done?: boolean;
+}
+
 export interface ClassEntry {
   type: ClassType;
   /** Participantes de la clase. En "indiv" siempre tiene un único elemento. */
@@ -132,6 +145,8 @@ export interface ClassEntry {
   content?: string[];
   /** Fotos y enlaces de video de la clase (v5). */
   attachments?: Attachment[];
+  /** Recordatorio del profe para este turno (v9). */
+  reminder?: Reminder;
   // Nota: ya NO existe `paid`. El estado de cobro se deriva de los pagos.
 }
 

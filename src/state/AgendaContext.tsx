@@ -18,6 +18,7 @@ import type {
   Payment,
   PaymentMethod,
   Prices,
+  Reminder,
   Settings,
   Student,
 } from '../types';
@@ -61,6 +62,8 @@ interface AgendaContextValue {
   deleteClass: (day: string, hour: number) => void;
   /** Saca un alumno puntual de una clase (recalcula el total; si queda vacía, libera el turno). */
   removeParticipant: (day: string, hour: number, index: number) => void;
+  /** Pone/edita/borra el recordatorio de un turno (null = borrar). */
+  setReminder: (day: string, hour: number, reminder: Reminder | null) => void;
   upsertStudent: (student: Student) => void;
   setStudentActive: (id: string, active: boolean) => void;
   /** Registra un pago y devuelve el registro creado (para el recibo). */
@@ -336,6 +339,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         haptic();
         dispatch({ type: 'REMOVE_PARTICIPANT', payload: { day, hour, index } });
       },
+      setReminder: (day, hour, reminder) =>
+        dispatch({ type: 'SET_REMINDER', payload: { day, hour, reminder } }),
       upsertStudent: (student) => dispatch({ type: 'UPSERT_STUDENT', payload: student }),
       setStudentActive: (id, active) => {
         capture(active ? 'Alumno reactivado' : 'Alumno archivado');

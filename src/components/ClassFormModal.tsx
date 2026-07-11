@@ -16,6 +16,8 @@ import AttachmentsEditor from './AttachmentsEditor';
 interface ClassFormModalProps {
   target: ClassFormTarget;
   onClose: () => void;
+  /** Abre el editor de recordatorio de este turno (solo tiene sentido al editar). */
+  onReminder: () => void;
 }
 
 function emptyParticipant(): ClassParticipant {
@@ -31,7 +33,7 @@ function isoWeeksAhead(startDay: string, weeks: number): string {
 }
 
 /** Alta y edición de una clase, con duración, estado y recurrencia. */
-export default function ClassFormModal({ target, onClose }: ClassFormModalProps) {
+export default function ClassFormModal({ target, onClose, onReminder }: ClassFormModalProps) {
   const { data, upsertClass, deleteClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
   const { day, hour, entry } = target;
 
@@ -406,6 +408,14 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
             <input type="checkbox" checked={collectNow} onChange={(e) => setCollectNow(e.target.checked)} />
             Cobrar ahora (con el medio por defecto)
           </label>
+        )}
+
+        {entry && (
+          <div className="class-form__row">
+            <button type="button" className="btn btn--ghost" onClick={onReminder}>
+              🔔 {entry.reminder ? 'Editar recordatorio' : 'Agregar recordatorio'}
+            </button>
+          </div>
         )}
 
         <div className="class-form__actions">

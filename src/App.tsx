@@ -25,6 +25,9 @@ import ExportReminder from './components/ExportReminder';
 import Skeletons from './components/Skeletons';
 import SyncCheck from './components/SyncCheck';
 import Spinner from './components/Spinner';
+import ReminderEditModal from './components/ReminderEditModal';
+import RemindersPanel from './components/RemindersPanel';
+import { useReminders } from './hooks/useReminders';
 import { useAgenda } from './state/AgendaContext';
 import { startOfWeek } from './lib/date';
 import type { ClassEntry, ClassFormTarget, Student } from './types';
@@ -32,7 +35,10 @@ import type { ClassEntry, ClassFormTarget, Student } from './types';
 /** Orquesta qué vista y qué modal está abierto; el estado de datos vive en AgendaContext. */
 function AppShell() {
   const { initialLoading, data } = useAgenda();
+  const { due, upcoming, dueCount } = useReminders();
   const [view, setView] = useState<ViewMode>('anual');
+  const [reminderTarget, setReminderTarget] = useState<{ day: string; hour: number } | null>(null);
+  const [remindersOpen, setRemindersOpen] = useState(false);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [weekAnchor, setWeekAnchor] = useState(() => new Date());
   const [openDay, setOpenDay] = useState<string | null>(null);
@@ -66,6 +72,8 @@ function AppShell() {
         onChangeYear={setYear}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        reminderCount={dueCount}
+        onOpenReminders={() => setRemindersOpen(true)}
       />
 
       <ExportReminder />
@@ -103,11 +111,18 @@ function AppShell() {
           onRegisterPayment={(studentId, classRef) => setPayTarget({ studentId, classRef })}
           onMoveClass={(hour) => setMoveTarget({ day: openDay, hour })}
           onDuplicateClass={(hour) => setDuplicateTarget({ day: openDay, hour })}
+          onReminder={(hour) => setReminderTarget({ day: openDay, hour })}
           onBlockDay={() => setBlockDayKey(openDay)}
         />
       )}
 
-      {formTarget && <ClassFormModal target={formTarget} onClose={() => setFormTarget(null)} />}
+      {formTarget && (
+        <ClassFormModal
+          target={formTarget}
+          onClose={() => setFormTarget(null)}
+          onReminder={() => setReminderTarget({ day: formTarget.day, hour: formTarget.hour })}
+        />
+      )}
 
       {searchOpen && (
         <GlobalSearchModal
@@ -158,6 +173,18 @@ function AppShell() {
       )}
 
       {blockDayKey && <BlockDayModal day={blockDayKey} onClose={() => setBlockDayKey(null)} />}
+
+      {reminderTarget && (
+        <ReminderEditModal
+          day={reminderTarget.day}
+          hour={reminderTarget.hour}
+          onClose={() => setReminderTarget(null)}
+        />
+      )}
+
+      {remindersOpen && (
+        <RemindersPanel due={due} upcoming={upcoming} onOpenDay={setOpenDay} onClose={() => setRemindersOpen(false)} />
+      )}
 
       <UndoToast />
       <SyncCheck />

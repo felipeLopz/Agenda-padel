@@ -23,10 +23,22 @@ interface HeaderProps {
   onChangeYear: (y: number) => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
+  /** Cantidad de recordatorios pendientes (para el número de la campana). */
+  reminderCount: number;
+  onOpenReminders: () => void;
 }
 
 /** Barra superior: marca, tabs de vista, selector de año y acciones. */
-export default function Header({ view, onChangeView, year, onChangeYear, onOpenSearch, onOpenSettings }: HeaderProps) {
+export default function Header({
+  view,
+  onChangeView,
+  year,
+  onChangeYear,
+  onOpenSearch,
+  onOpenSettings,
+  reminderCount,
+  onOpenReminders,
+}: HeaderProps) {
   const { data, setTheme } = useAgenda();
   const { user } = useAuth();
   const theme = data.settings.theme ?? 'dark';
@@ -90,6 +102,15 @@ export default function Header({ view, onChangeView, year, onChangeYear, onOpenS
       )}
 
       <div className="app-header__actions">
+        <button
+          className="btn btn--ghost app-header__bell has-tip"
+          data-tip="Recordatorios"
+          aria-label="Recordatorios"
+          onClick={onOpenReminders}
+        >
+          🔔
+          {reminderCount > 0 && <span className="app-header__badge">{reminderCount}</span>}
+        </button>
         <button className="btn btn--ghost" onClick={onOpenSearch}>
           🔍 Buscar
         </button>

@@ -66,6 +66,7 @@ input[type='email'],
 input[type='password'],
 input[type='search'],
 input[type='date'],
+input[type='datetime-local'],
 select,
 textarea {
   background: var(--bg-card);
@@ -84,6 +85,7 @@ input[type='email']:focus,
 input[type='password']:focus,
 input[type='search']:focus,
 input[type='date']:focus,
+input[type='datetime-local']:focus,
 select:focus,
 textarea:focus {
   outline: none;
@@ -3173,6 +3175,108 @@ textarea:focus {
 }
 .icon-btn:active {
   transform: scale(0.95);
+}
+
+/* =========================================================================
+   Recordatorios por turno (v9): campana, badge, nota y panel.
+   ========================================================================= */
+
+/* Campana del encabezado con el número de pendientes. */
+.app-header__bell {
+  position: relative;
+}
+.app-header__badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* Botón 🔔 de una clase, resaltado cuando tiene un recordatorio activo. */
+.icon-btn--reminder {
+  border-color: var(--orange);
+  color: var(--orange-light);
+}
+
+/* Nota del recordatorio dentro de la clase (agenda del día). */
+.day-slot__reminder {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: var(--amber-dim);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* Opciones rápidas de hora del aviso. */
+.reminder-quick {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+/* Panel de recordatorios. */
+.reminders {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.reminders__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reminder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.reminder-row--due {
+  border-color: var(--amber);
+  background: var(--amber-dim);
+}
+.reminder-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.reminder-row__text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.reminder-row__turno {
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: var(--blue-light);
+  font-size: 12px;
+  cursor: pointer;
+}
+.reminder-row__turno:hover {
+  text-decoration: underline;
+}
+.reminder-row__when {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /* Respeta prefers-reduced-motion: reduce todo al mínimo para no marear. */

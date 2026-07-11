@@ -28,6 +28,7 @@ interface DayAgendaModalProps {
   onRegisterPayment: (studentId: string, classRef: { day: string; hour: number }) => void;
   onMoveClass: (hour: number) => void;
   onDuplicateClass: (hour: number) => void;
+  onReminder: (hour: number) => void;
   onBlockDay: () => void;
 }
 
@@ -40,6 +41,7 @@ export default function DayAgendaModal({
   onRegisterPayment,
   onMoveClass,
   onDuplicateClass,
+  onReminder,
   onBlockDay,
 }: DayAgendaModalProps) {
   const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant } = useAgenda();
@@ -177,6 +179,14 @@ export default function DayAgendaModal({
                     ✎
                   </button>
                   <button
+                    className={`icon-btn has-tip${entry.reminder && !entry.reminder.done ? ' icon-btn--reminder' : ''}`}
+                    onClick={() => onReminder(hour)}
+                    aria-label="Recordatorio"
+                    data-tip="Recordatorio"
+                  >
+                    🔔
+                  </button>
+                  <button
                     className="btn btn--small day-slot__delete-btn"
                     onClick={() => handleDelete(hour, entry)}
                     aria-label="Borrar turno"
@@ -244,6 +254,11 @@ export default function DayAgendaModal({
                     {classNames(entry, data.students).join(', ')} · cancelada (no se cobra)
                   </span>
                 </div>
+              )}
+
+              {/* Recordatorio del turno (si tiene uno activo). */}
+              {entry.reminder && !entry.reminder.done && (
+                <div className="day-slot__reminder">🔔 {entry.reminder.text}</div>
               )}
 
               {/* Temas trabajados y adjuntos (contenido deportivo). */}

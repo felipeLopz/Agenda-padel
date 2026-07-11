@@ -7,6 +7,7 @@ import type {
   Payment,
   PaymentMethod,
   Prices,
+  Reminder,
   Settings,
   Student,
 } from '../types';
@@ -24,6 +25,7 @@ export type AgendaAction =
   | { type: 'UPSERT_CLASS'; payload: { day: string; hour: number; entry: ClassEntry } }
   | { type: 'DELETE_CLASS'; payload: { day: string; hour: number } }
   | { type: 'REMOVE_PARTICIPANT'; payload: { day: string; hour: number; index: number } }
+  | { type: 'SET_REMINDER'; payload: { day: string; hour: number; reminder: Reminder | null } }
   | { type: 'ADD_CLASSES'; payload: { entries: PlacedClass[] } }
   | { type: 'MOVE_CLASS'; payload: { from: { day: string; hour: number }; to: { day: string; hour: number } } }
   | { type: 'DELETE_SERIES'; payload: { seriesId: string } }
@@ -83,6 +85,18 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
       const { day, hour, entry } = action.payload;
       const daySlots = { ...(state.days[day] || {}), [String(hour)]: entry };
       return { ...state, days: { ...state.days, [day]: daySlots } };
+    }
+
+    case 'SET_REMINDER': {
+      // Pone/edita/borra el recordatorio de un turno (queda dentro del ClassEntry).
+      const { day, hour, reminder } = action.payload;
+      const slots = state.days[day];
+      const entry = slots?.[String(hour)];
+      if (!entry) return state;
+      const nextEntry: ClassEntry = { ...entry };
+      if (reminder) nextEntry.reminder = reminder;
+      else delete nextEntry.reminder;
+      return { ...state, days: { ...state.days, [day]: { ...slots, [String(hour)]: nextEntry } } };
     }
 
     case 'DELETE_CLASS': {
