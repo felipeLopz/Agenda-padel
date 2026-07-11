@@ -1,0 +1,249 @@
+# Agenda de Pádel
+
+Aplicación web interna para que un profesor de pádel gestione sus clases: alta/edición
+de clases grupales e individuales, control de cobros, vista anual y semanal, **base de
+alumnos con fichas** y búsqueda. Reemplaza al prototipo `agenda-padel.html` de un solo
+archivo por una versión organizada en componentes, más fácil de mantener y ampliar.
+
+## Alumnos (base de datos)
+
+Los alumnos son entidades propias con ficha: nombre y apellido, foto (opcional, se sube
+desde el celular y se guarda comprimida), teléfono, nivel (principiante / intermedio /
+avanzado / competición), cumpleaños, notas privadas, etiquetas libres y estado
+activo/archivado. Desde la pestaña **Alumnos** se listan, buscan y filtran (por nombre o
+etiqueta, por nivel y por estado), se crean, editan y archivan.
+
+- **Clases vinculadas**: al cargar una clase, el campo de alumno autocompleta contra las
+  fichas existentes. Al elegir una, la clase queda vinculada por id; también se puede
+  escribir un nombre suelto y crear su ficha al vuelo. El nombre se muestra **en vivo**:
+  si se corrige en la ficha, se actualiza en todo el historial.
+- **Historial por alumno**: dentro de la ficha se listan todas sus clases con su parte
+  prorrateada (precio de la clase ÷ cantidad de alumnos) y un resumen de montos.
+- **WhatsApp**: botón en la ficha que abre `wa.me` con el teléfono del alumno.
+
+### Montos: total vs. parte prorrateada
+
+- **Agenda del día** y **vista semanal** muestran el **precio total de la clase**.
+- **Ficha del alumno** y **Buscar alumno** muestran la **parte prorrateada** de cada
+  alumno (precio ÷ cantidad de participantes), para que los números coincidan al cobrarle
+  a cada uno. En clases individuales ambas cifras son iguales.
+
+## Plata: pagos, packs, gastos y recibos
+
+El estado **cobrado/pendiente ya no es un toggle** por clase: se **deriva de los pagos**
+registrados. Cada clase se calcula **Pagada / Parcial / Impaga** (verde / ámbar / rojo) a
+partir de los pagos, la cobertura de packs y los descuentos. El "un toque = cobrado" se
+mantiene: en la agenda del día, el botón **Cobrar** de una clase registra un pago del
+saldo con el medio por defecto (y **Deshacer** lo revierte).
+
+- **Deuda por alumno**: la ficha muestra el **saldo**; la pestaña **Caja** tiene el
+  **ranking de deudores** y el **total adeudado**.
+- **Pagos parciales**: se registra cualquier monto; el saldo baja. Los pagos con
+  `classRef` (cobro de una clase) saldan esa clase; los pagos libres (desde la ficha) se
+  aplican **FIFO**, a la deuda más vieja primero.
+- **Medios de pago**: configurables en Configuración (efectivo, transferencia, Mercado
+  Pago, y los que se agreguen). En Caja se ve **cuánto entró por cada medio**.
+- **Packs (bonos prepagos)**: se compran por adelantado (N clases). Cada clase que toma el
+  alumno **consume 1 crédito automáticamente** (de la más vieja a la más nueva) y esa
+  clase no se vuelve a cobrar. La ficha muestra las **clases restantes** y avisa cuando el
+  pack está **por agotarse** o **agotado**.
+- **Descuentos** (dos formas que conviven):
+  - **Fijo de ficha**: permanente en el alumno (% o monto), aplica a todas sus clases.
+  - **Puntual de clase**: una sola vez, en el participante de una clase concreta.
+  - **Combinación**: se encadenan, **primero el fijo, después el puntual** (el puntual se
+    calcula sobre el precio ya descontado por el fijo). La agenda muestra de dónde viene
+    cada uno (`−X% ficha`, `−X% puntual`).
+- **Recibos PDF**: cada pago genera un recibo `.pdf` (con jsPDF) descargable/compartible.
+- **Gastos y ganancia neta**: se cargan gastos (alquiler, pelotas…); Caja muestra la
+  **ganancia neta** (ingresos cobrados − gastos) por mes y por año.
+- **Cierre de caja del día**: cuánto entró, por qué medios y lo pendiente; de hoy o de un
+  día pasado.
+- **Proyección del mes**: según lo agendado (cobrado + pendiente), cuánto se va a facturar.
+
+## Stack
+
+- [Vite](https://vitejs.dev/) + [React 19](https://react.dev/) + TypeScript.
+- Sin backend ni base de datos: los datos viven en `localStorage` del navegador.
+- Una sola dependencia funcional: [jsPDF](https://github.com/parallax/jsPDF) para los
+  recibos (se carga con `import()` dinámico, así no pesa en la carga inicial). Sin
+  librerías de UI.
+
+## Estructura del proyecto
+
+```
+src/
+  types.ts              Tipos de datos (v3, con pagos/packs/gastos/medios/descuentos)
+  lib/
+    money.ts            Cerebro financiero: estado derivado, saldos, packs, totales, caja
+    migrate.ts          Migración en cadena v1 → v2 → v3
+    students.ts         Helpers de alumnos (nombre en vivo, autocompletado, etc.)
+    discount.ts         Aplicación y encadenado de descuentos
+    receipt.ts          Recibos PDF (jsPDF, import dinámico)
+    date / format / pricing / image / id / constants / storage
+  state/                Estado global (Context + reducer), ledger memoizado, persistencia
+  components/           Header, vistas (anual/semanal/alumnos/caja) y todos los modales
+  styles/global.css     Tema "Estadio Nocturno" (azules/negro/naranja)
+  App.tsx               Orquesta qué vista y qué modal está abierto
+  main.tsx              Punto de entrada
+```
+
+El catálogo de precios y las clases NO se editan a mano en el código (a diferencia del
+otro proyecto de este mismo cliente): todo se administra desde la propia interfaz y se
+guarda en el navegador.
+
+## Cómo correrlo en desarrollo
+
+Requiere [Node.js](https://nodejs.org/) instalado.
+
+```bash
+npm install
+npm run dev
+```
+
+Abrir la URL que muestra la terminal (por defecto **http://localhost:5173**).
+
+## Cómo generar el build de producción
+
+```bash
+npm run build
+```
+
+Esto valida los tipos de TypeScript y genera una carpeta `dist/` con archivos
+estáticos (HTML/CSS/JS) listos para publicar en cualquier hosting. Para previsualizar
+ese build localmente:
+
+```bash
+npm run preview
+```
+
+## Cómo desplegarlo
+
+`dist/` es un sitio 100% estático, así que cualquiera de estas opciones sirve:
+
+- **Vercel / Netlify**: conectar el repo (o arrastrar la carpeta `dist/`), build command
+  `npm run build`, output directory `dist`. Deploy automático en cada push, igual que el
+  otro proyecto de este cliente.
+- **Cualquier hosting estático** (GitHub Pages, un servidor propio, etc.): subir el
+  contenido de `dist/` tal cual.
+
+No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
+
+## Datos: persistencia y respaldo
+
+- Los datos (precios + clases + alumnos) se guardan automáticamente en `localStorage`
+  del navegador, bajo la clave `agenda-padel:data`. Si se borra el caché del navegador o
+  se cambia de dispositivo, se pierden — por eso conviene exportar seguido.
+- **Exportar**: botón "⬇ Exportar JSON" en Configuración. Descarga un archivo en el
+  formato v2 (incluye `students`), útil como respaldo y para pasar datos entre
+  dispositivos.
+- **Importar**: botón "⬆ Importar JSON" en Configuración. Acepta tanto el formato v2 como
+  los archivos viejos v1 del prototipo. Importar **reemplaza** todos los datos actuales
+  del dispositivo — la app pide confirmación antes de hacerlo.
+
+### Formato del archivo (v3)
+
+```jsonc
+{
+  "version": 3,
+  "prices": { "grupal": 4000, "indiv": 12000 },
+  "students": {
+    "<id>": {
+      "id": "<id>",
+      "firstName": "Ana",
+      "lastName": "Pérez",
+      "photo": "data:image/jpeg;base64,...",   // opcional
+      "phone": "2613900039",                    // opcional
+      "level": "principiante",                  // principiante | intermedio | avanzado | competicion
+      "birthday": "2000-05-14",                 // opcional, "YYYY-MM-DD"
+      "notes": "mejorar el revés",              // opcional
+      "tags": ["zurdo", "paga puntual"],
+      "discount": { "type": "percent", "value": 20 }, // opcional: descuento fijo (percent|fixed)
+      "active": true,
+      "createdAt": "2026-07-11T00:00:00.000Z"
+    }
+  },
+  "days": {
+    "2026-6-15": {                              // clave "AÑO-MES-DIA", mes desde 0
+      "8": {
+        "type": "grupal",                       // grupal | indiv
+        "participants": [
+          { "studentId": "<id>", "name": "Ana Pérez",
+            "discount": { "type": "fixed", "value": 1000 } }, // opcional: descuento puntual
+          { "studentId": null, "name": "Invitado" }            // nombre suelto sin ficha
+        ],
+        "price": 8000                           // precio de lista de la clase (sin `paid`)
+      }
+    }
+  },
+  "payments": {                                 // libro de pagos (plata que entró)
+    "<id>": {
+      "id": "<id>", "studentId": "<id>",
+      "date": "2026-07-15",                     // "YYYY-MM-DD"
+      "amount": 4000, "methodId": "efectivo",
+      "concept": "Cobro de clase",
+      "kind": "clase",                          // clase | pack | ajuste
+      "classRef": { "day": "2026-6-15", "hour": 8 }, // opcional (cobro de una clase)
+      "packId": "<id>"                          // opcional (si es compra de pack)
+    }
+  },
+  "packs": {                                    // bonos prepagos
+    "<id>": { "id": "<id>", "studentId": "<id>", "totalClasses": 8,
+              "price": 32000, "purchaseDate": "2026-07-01", "methodId": "transferencia" }
+  },
+  "expenses": {                                 // gastos del profesor
+    "<id>": { "id": "<id>", "date": "2026-07-01", "concept": "Alquiler cancha", "amount": 15000 }
+  },
+  "paymentMethods": [                           // medios configurables
+    { "id": "efectivo", "label": "Efectivo" },
+    { "id": "transferencia", "label": "Transferencia" },
+    { "id": "mercadopago", "label": "Mercado Pago" }
+  ],
+  "settings": { "defaultMethodId": "efectivo", "packLowThreshold": 2 }
+}
+```
+
+Las "clases restantes" de un pack y el estado cobrado/pendiente de cada clase **no se
+guardan**: se derivan de los pagos y la asistencia (ver `src/lib/money.ts`).
+
+### Compatibilidad con los formatos viejos (v1 → v2 → v3)
+
+Al **cargar** el localStorage o **importar** un archivo, la app migra en cadena y sin
+perder datos (`src/lib/migrate.ts`, idempotente):
+
+- **v1** (clases con `names: string[]`, sin alumnos) → crea una ficha por nombre distinto
+  (deduplicando sin distinguir mayúsculas/espacios) y vincula las clases.
+- **v2** (clases con `paid`) → por cada clase marcada cobrada, **sintetiza un pago** por
+  participante (monto = su parte, fecha = la de la clase, medio = Efectivo) y quita `paid`.
+  Así los totales de cobrado/pendiente/facturación quedan **idénticos** a v2, y las clases
+  antes cobradas se ven "Pagadas". Agrega los medios de pago y los libros (pagos/packs/
+  gastos) vacíos.
+
+## Decisiones tomadas
+
+- **React + TypeScript en vez de vanilla JS**: se eligió por pedido explícito para
+  facilitar el mantenimiento de las múltiples vistas y modales que interactúan entre sí
+  (vista anual, semanal, agenda del día, formulario de clase, buscador, configuración),
+  a costa de un paso de build (`npm run build`) que sigue siendo tan simple de desplegar
+  como el HTML suelto original.
+- **Semana de lunes a domingo** en la vista semanal (convención habitual en Argentina).
+- **El precio sugerido no sobreescribe un importe ya editado a mano**: al tocar el campo
+  "Importe" una vez, deja de recalcularse aunque se agreguen o quiten alumnos.
+- **Los precios de Configuración son solo el valor por defecto** para clases nuevas; no
+  modifican el importe de clases ya cargadas.
+- **Nombre "en vivo"**: las clases guardan el `studentId`; el nombre que se muestra sale
+  siempre de la ficha actual, así corregir un nombre se refleja en todo el historial. Los
+  nombres sueltos (sin ficha) se guardan como texto.
+- **Los alumnos se archivan, no se borran** (`active: false`), para no romper el historial
+  de clases pasadas. Los archivados no aparecen en el autocompletado de clases nuevas.
+- **Las fotos se comprimen** (máx. 512 px, JPEG) antes de guardarse, porque `localStorage`
+  tiene poca cuota y se almacenan dentro del JSON.
+- **El estado de cobro se deriva de los pagos** (una sola fuente de verdad), en vez de un
+  toggle manual. Toda la lógica de plata vive en `src/lib/money.ts` y se recalcula en un
+  memo del contexto ante cada cambio.
+- **Devengado vs. percibido**: los totales por período (barra anual, pie de mes) son
+  *devengados* (según las clases del período); Caja (ingresos por medio, cierre, ganancia
+  neta) es *percibido* (según la fecha real de los pagos). Coinciden para datos migrados.
+- **Solo se rastrea la plata de alumnos con ficha**: un nombre suelto (`studentId: null`)
+  cuenta para el precio de la clase pero no genera deuda ni cobro.
+- **Los packs se consumen FIFO** (clase más vieja primero, desde la fecha de compra) y el
+  monto se cobra al comprarlos (prepago); esas clases no se vuelven a cobrar.
