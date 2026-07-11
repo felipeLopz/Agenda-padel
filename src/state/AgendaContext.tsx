@@ -57,10 +57,8 @@ interface AgendaContextValue {
   setPrices: (prices: Prices) => void;
   upsertClass: (day: string, hour: number, entry: ClassEntry) => void;
   deleteClass: (day: string, hour: number) => void;
-  /** Saca un alumno puntual de una clase (recalcula precio; si queda vacía, libera el turno). */
+  /** Saca un alumno puntual de una clase (recalcula el total; si queda vacía, libera el turno). */
   removeParticipant: (day: string, hour: number, index: number) => void;
-  /** Saca a todos los alumnos de una clase (libera el turno). */
-  clearClassParticipants: (day: string, hour: number) => void;
   upsertStudent: (student: Student) => void;
   setStudentActive: (id: string, active: boolean) => void;
   /** Registra un pago y devuelve el registro creado (para el recibo). */
@@ -307,10 +305,6 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       removeParticipant: (day, hour, index) => {
         capture('Alumno quitado del turno');
         dispatch({ type: 'REMOVE_PARTICIPANT', payload: { day, hour, index } });
-      },
-      clearClassParticipants: (day, hour) => {
-        capture('Turno vaciado');
-        dispatch({ type: 'CLEAR_PARTICIPANTS', payload: { day, hour } });
       },
       upsertStudent: (student) => dispatch({ type: 'UPSERT_STUDENT', payload: student }),
       setStudentActive: (id, active) => {

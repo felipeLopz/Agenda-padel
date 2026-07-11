@@ -5,6 +5,7 @@ import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS, COMMON_TOPICS } from '../lib/constants';
 import { suggestedPrice } from '../lib/pricing';
 import { participantName } from '../lib/students';
+import { formatCurrency } from '../lib/format';
 import { classDuration, classState, findOverlapFor, STATE_LABEL, STATES, timeRange } from '../lib/classMeta';
 import type { RecurrenceInput } from '../lib/recurrence';
 import type { Attachment, ClassEntry, ClassFormTarget, ClassParticipant, ClassState, ClassType } from '../types';
@@ -19,10 +20,6 @@ interface ClassFormModalProps {
 
 function emptyParticipant(): ClassParticipant {
   return { studentId: null, name: '' };
-}
-
-function countFilled(list: ClassParticipant[]): number {
-  return list.filter((p) => p.studentId || p.name.trim()).length;
 }
 
 /** Fecha ISO "YYYY-MM-DD" a N semanas de un dayKey. */
@@ -62,30 +59,28 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
   const [count, setCount] = useState(4);
   const [endDate, setEndDate] = useState(() => isoWeeksAhead(day, 4));
 
-  function recalcPrice(nextType: ClassType, nextList: ClassParticipant[]) {
-    if (priceTouched) return;
-    const c = nextType === 'grupal' ? Math.max(countFilled(nextList), 1) : 1;
-    setPrice(suggestedPrice(nextType, c, data.prices));
+  // El importe individual se autosugiere (si no lo tocaste). En grupal el total sale de
+  // la SUMA de los precios por alumno (v8), así que no hay un total a autocalcular acá.
+  function suggestIndivPrice(nextType: ClassType) {
+    if (priceTouched || nextType !== 'indiv') return;
+    setPrice(suggestedPrice('indiv', 1, data.prices));
   }
   function applyType(nextType: ClassType) {
     setType(nextType);
     const nextList = nextType === 'indiv' ? [participants[0] ?? emptyParticipant()] : participants;
     setParticipants(nextList);
-    recalcPrice(nextType, nextList);
+    suggestIndivPrice(nextType);
   }
   function updateParticipant(idx: number, p: ClassParticipant) {
-    const next = participants.map((cur, i) => (i === idx ? p : cur));
-    setParticipants(next);
-    recalcPrice(type, next);
+    setParticipants(participants.map((cur, i) => (i === idx ? p : cur)));
   }
   function addParticipant() {
-    setParticipants([...participants, emptyParticipant()]);
+    // Cada alumno arranca con el precio grupal sugerido (editable por alumno).
+    setParticipants([...participants, { studentId: null, name: '', price: data.prices.grupal }]);
   }
   function removeParticipant(idx: number) {
     const next = participants.filter((_, i) => i !== idx);
-    const finalNext = next.length ? next : [emptyParticipant()];
-    setParticipants(finalNext);
-    recalcPrice(type, finalNext);
+    setParticipants(next.length ? next : [emptyParticipant()]);
   }
 
   function addTopic(text: string) {
@@ -123,11 +118,16 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
       studentId: p.studentId,
       name: p.studentId ? participantName(p, data.students) : p.name.trim(),
       discount: p.discount,
+      // Grupal: cada alumno guarda su precio propio. Individual: sin precio por alumno.
+      price: type === 'grupal' ? (p.price ?? data.prices.grupal) : undefined,
     }));
+    // El total de la clase es la suma de los alumnos (grupal) o el importe único (indiv).
+    const totalPrice =
+      type === 'grupal' ? finalList.reduce((sum, p) => sum + (p.price ?? 0), 0) : Number(price) || 0;
     const finalEntry: ClassEntry = {
       type,
       participants: finalList,
-      price: Number(price) || 0,
+      price: totalPrice,
       // Solo se guardan si difieren del default (para no ensuciar clases v3).
       duration: duration !== 60 ? duration : undefined,
       state: state !== 'confirmada' ? state : undefined,
@@ -173,6 +173,10 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
   } · ${hour}:00`;
   const visible = type === 'indiv' ? participants.slice(0, 1) : participants;
   const chosenIds = participants.map((p) => p.studentId).filter((id): id is string => Boolean(id));
+  // Total de la clase grupal = suma de los precios de los alumnos cargados.
+  const grupalTotal = visible
+    .filter((p) => p.studentId || p.name.trim())
+    .reduce((sum, p) => sum + (p.price ?? data.prices.grupal), 0);
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -212,8 +216,18 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
                   excludeIds={chosenIds.filter((id) => id !== p.studentId)}
                   placeholder={`Alumno ${idx + 1}`}
                   onChange={(next) => updateParticipant(idx, next)}
-                  onRemove={type === 'grupal' && participants.length > 1 ? () => removeParticipant(idx) : undefined}
+                  onRemove={type === 'grupal' ? () => removeParticipant(idx) : undefined}
                 />
+                {type === 'grupal' && (
+                  <div className="participant-block__price">
+                    <label>Precio de este alumno</label>
+                    <input
+                      type="number"
+                      value={p.price ?? data.prices.grupal}
+                      onChange={(e) => updateParticipant(idx, { ...p, price: Number(e.target.value) })}
+                    />
+                  </div>
+                )}
                 {showDiscounts && (
                   <DiscountEditor
                     value={p.discount}
@@ -233,15 +247,24 @@ export default function ClassFormModal({ target, onClose }: ClassFormModalProps)
 
         <div className="class-form__row class-form__row--split">
           <div>
-            <label>Importe</label>
-            <input
-              type="number"
-              value={price}
-              onChange={(e) => {
-                setPriceTouched(true);
-                setPrice(Number(e.target.value));
-              }}
-            />
+            {type === 'indiv' ? (
+              <>
+                <label>Importe</label>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e) => {
+                    setPriceTouched(true);
+                    setPrice(Number(e.target.value));
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <label>Total de la clase (suma de los alumnos)</label>
+                <div className="class-form__total">{formatCurrency(grupalTotal)}</div>
+              </>
+            )}
           </div>
           <div>
             <label>Duración</label>

@@ -41,8 +41,7 @@ export default function DayAgendaModal({
   onDuplicateClass,
   onBlockDay,
 }: DayAgendaModalProps) {
-  const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant, clearClassParticipants } =
-    useAgenda();
+  const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant } = useAgenda();
   const date = parseDayKey(day);
   const slots = data.days[day];
   const totals = dayTotals(data, ledger, day);
@@ -60,7 +59,7 @@ export default function DayAgendaModal({
         return;
       }
     }
-    if (confirm('¿Borrar esta clase? No se puede deshacer.')) deleteClass(day, hour);
+    if (confirm('¿Borrar este turno entero? Podés deshacerlo con el botón "Deshacer".')) deleteClass(day, hour);
   }
 
   const title = `${WEEKDAY_NAMES_LONG[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
@@ -178,7 +177,8 @@ export default function DayAgendaModal({
                   <button
                     className="icon-btn icon-btn--danger"
                     onClick={() => handleDelete(hour, entry)}
-                    aria-label="Borrar"
+                    aria-label="Borrar turno"
+                    title="Borrar turno entero"
                   >
                     🗑
                   </button>
@@ -234,17 +234,6 @@ export default function DayAgendaModal({
                       </div>
                     );
                   })}
-                  {entry.participants.length > 1 && (
-                    <button
-                      className="btn btn--tiny btn--ghost day-slot__clear"
-                      onClick={() => {
-                        if (confirm('¿Sacar a TODOS los alumnos de este turno? El turno queda libre.'))
-                          clearClassParticipants(day, hour);
-                      }}
-                    >
-                      Vaciar grupo (liberar turno)
-                    </button>
-                  )}
                 </div>
               ) : (
                 <div className="day-slot__students">

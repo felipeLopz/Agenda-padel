@@ -24,7 +24,6 @@ export type AgendaAction =
   | { type: 'UPSERT_CLASS'; payload: { day: string; hour: number; entry: ClassEntry } }
   | { type: 'DELETE_CLASS'; payload: { day: string; hour: number } }
   | { type: 'REMOVE_PARTICIPANT'; payload: { day: string; hour: number; index: number } }
-  | { type: 'CLEAR_PARTICIPANTS'; payload: { day: string; hour: number } }
   | { type: 'ADD_CLASSES'; payload: { entries: PlacedClass[] } }
   | { type: 'MOVE_CLASS'; payload: { from: { day: string; hour: number }; to: { day: string; hour: number } } }
   | { type: 'DELETE_SERIES'; payload: { seriesId: string } }
@@ -87,6 +86,8 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
     }
 
     case 'DELETE_CLASS': {
+      // Borra el turno entero. Se desligan los pagos atados a esa clase (pasan a crédito
+      // libre del alumno), para no dejar referencias colgadas a una clase que ya no existe.
       const { day, hour } = action.payload;
       if (!state.days[day]) return state;
       const daySlots = { ...state.days[day] };
@@ -94,13 +95,14 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
       const days = { ...state.days };
       if (Object.keys(daySlots).length === 0) delete days[day];
       else days[day] = daySlots;
-      return { ...state, days };
+      const payments = detachClassPayments(state.payments, day, hour, null);
+      return { ...state, days, payments };
     }
 
     case 'REMOVE_PARTICIPANT': {
-      // Saca a un alumno puntual de una clase. Si es grupal, se reduce el precio en
-      // proporción para que la parte de cada alumno que queda NO cambie (precio ÷ n se
-      // mantiene). Si no queda nadie, se libera el turno (se borra la clase).
+      // Saca a un alumno puntual de una clase. En grupal cada alumno tiene su precio
+      // propio (v8), así que el total pasa a ser la suma de los que quedan. Si no queda
+      // nadie, se libera el turno (se borra la clase). Funciona también con el último.
       const { day, hour, index } = action.payload;
       const slots = state.days[day];
       const entry = slots?.[String(hour)];
@@ -120,27 +122,14 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
       } else {
         const oldLen = entry.participants.length;
         const nextPrice =
-          entry.type === 'grupal' ? Math.round((entry.price * nextParticipants.length) / oldLen) : entry.price;
+          entry.type === 'grupal'
+            ? nextParticipants.reduce((sum, p) => sum + (p.price ?? entry.price / oldLen), 0)
+            : entry.price;
         const nextEntry: ClassEntry = { ...entry, participants: nextParticipants, price: nextPrice };
         days = { ...state.days, [day]: { ...slots, [String(hour)]: nextEntry } };
       }
 
       const payments = detachClassPayments(state.payments, day, hour, removed.studentId);
-      return { ...state, days, payments };
-    }
-
-    case 'CLEAR_PARTICIPANTS': {
-      // Saca a TODOS del turno: se libera (se borra la clase) y se desligan los pagos
-      // atados a esa clase (de cualquier alumno), para no dejar referencias colgadas.
-      const { day, hour } = action.payload;
-      const slots = state.days[day];
-      if (!slots?.[String(hour)]) return state;
-      const daySlots = { ...slots };
-      delete daySlots[String(hour)];
-      const days = { ...state.days };
-      if (Object.keys(daySlots).length === 0) delete days[day];
-      else days[day] = daySlots;
-      const payments = detachClassPayments(state.payments, day, hour, null);
       return { ...state, days, payments };
     }
 

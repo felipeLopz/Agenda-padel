@@ -90,9 +90,17 @@ export function classKey(day: string, hour: number): string {
   return `${day}|${hour}`;
 }
 
-/** Parte bruta de un alumno en una clase (prorrateo). */
-export function grossShare(entry: ClassEntry): number {
-  return entry.price / (entry.participants.length || 1);
+/**
+ * Parte "bruta" (antes de descuentos) de un alumno en una clase.
+ * Grupal (v8): el precio PROPIO del alumno, sin dividir. Individual: el precio de la
+ * clase. Fallback al prorrateo viejo (precio ÷ cantidad) por si faltara el precio propio.
+ */
+export function participantGross(entry: ClassEntry, participantIndex: number): number {
+  if (entry.type === 'grupal') {
+    const own = entry.participants[participantIndex]?.price;
+    return typeof own === 'number' ? own : entry.price / (entry.participants.length || 1);
+  }
+  return entry.price;
 }
 
 /**
@@ -100,7 +108,7 @@ export function grossShare(entry: ClassEntry): number {
  * viene cada descuento. Primero el fijo de la ficha, después el puntual de la clase.
  */
 export function shareBreakdown(entry: ClassEntry, participantIndex: number, student: Student | undefined) {
-  const gross = grossShare(entry);
+  const gross = participantGross(entry, participantIndex);
   const participant = entry.participants[participantIndex];
   const afterFixed = applyDiscount(gross, student?.discount);
   const net = applyDiscount(afterFixed, participant?.discount);

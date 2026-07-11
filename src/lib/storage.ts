@@ -6,7 +6,7 @@ import {
   DEFAULT_SETTINGS,
   STORAGE_KEY,
 } from './constants';
-import { normalizeToV7 } from './migrate';
+import { normalizeToV8 } from './migrate';
 
 function emptyData(): AgendaData {
   return {
@@ -24,13 +24,13 @@ function emptyData(): AgendaData {
 }
 
 /**
- * Valida y completa un objeto JSON arbitrario para convertirlo en AgendaData v7.
- * Admite el localStorage propio (v1..v7) y archivos exportados por el prototipo (v1).
- * Las migraciones v1→…→v7 viven en lib/migrate.ts. Cualquier campo faltante se
+ * Valida y completa un objeto JSON arbitrario para convertirlo en AgendaData v8.
+ * Admite el localStorage propio (v1..v8) y archivos exportados por el prototipo (v1).
+ * Las migraciones v1→…→v8 viven en lib/migrate.ts. Cualquier campo faltante se
  * completa con un valor por defecto en lugar de descartar todo el archivo.
  */
 export function normalizeData(raw: unknown): AgendaData {
-  return normalizeToV7(raw);
+  return normalizeToV8(raw);
 }
 
 export function loadData(): AgendaData {

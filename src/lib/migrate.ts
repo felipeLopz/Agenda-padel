@@ -257,7 +257,12 @@ function normalizeToV2(raw: unknown): V2Intermediate {
               const studentId =
                 typeof part.studentId === 'string' && students[part.studentId] ? part.studentId : null;
               if (!studentId && !name.trim()) return null;
-              return { studentId, name, discount: parseDiscount(part.discount) };
+              return {
+                studentId,
+                name,
+                discount: parseDiscount(part.discount),
+                price: typeof part.price === 'number' && part.price >= 0 ? part.price : undefined,
+              };
             })
             .filter((p): p is ClassParticipant => p !== null);
         } else if (Array.isArray(entry.names)) {
@@ -268,13 +273,24 @@ function normalizeToV2(raw: unknown): V2Intermediate {
 
         if (participants.length === 0) continue;
         const finalParticipants = type === 'indiv' ? participants.slice(0, 1) : participants;
+        const priceNum = Number(entry.price) || 0;
+        // v8: en grupal cada alumno lleva su precio propio. Si viene del formato viejo
+        // (precio total repartido), se le asigna su prorrateo actual (precio ÷ cantidad),
+        // así los totales y la parte de cada alumno quedan idénticos tras migrar.
+        const pricedParticipants =
+          type === 'grupal'
+            ? finalParticipants.map((p) => ({
+                ...p,
+                price: typeof p.price === 'number' ? p.price : priceNum / (finalParticipants.length || 1),
+              }))
+            : finalParticipants;
 
         const durationNum = Number(entry.duration);
         const validStates: ClassState[] = ['confirmada', 'tentativa', 'cancelada', 'ausente'];
         cleanSlots[hour] = {
           type,
-          participants: finalParticipants,
-          price: Number(entry.price) || 0,
+          participants: pricedParticipants,
+          price: priceNum,
           paid: Boolean(entry.paid),
           duration: Number.isFinite(durationNum) && durationNum > 0 ? durationNum : undefined,
           state: validStates.includes(entry.state as ClassState) ? (entry.state as ClassState) : undefined,
@@ -453,7 +469,7 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
         for (const p of entry.participants) {
           if (!p.studentId) continue; // solo se puede cobrar a fichas; los sueltos no se rastrean
           const student = v2.students[p.studentId];
-          const share = applyDiscountChain(entry.price / n, student?.discount, p.discount);
+          const share = applyDiscountChain(p.price ?? entry.price / n, student?.discount, p.discount);
           const id = newId();
           payments[id] = {
             id,
@@ -506,12 +522,12 @@ function normalizeBlocks(raw: unknown): Record<string, DayBlock> {
 }
 
 /**
- * Punto de entrada: normaliza cualquier JSON (v1..v7) a un AgendaData v7 completo.
+ * Punto de entrada: normaliza cualquier JSON (v1..v8) a un AgendaData v8 completo.
  * Encadena las migraciones anteriores; migrateV2toV3 ya emite la versión actual
- * (DATA_VERSION = 7) con todos los campos nuevos conservados (contenido/adjuntos,
- * objetivos/notas, horario/días laborales/tema, y ahora categoría/nivel de pádel,
- * migrando el `level` viejo). Idempotente, no descarta nada.
+ * (DATA_VERSION = 8) con todos los campos nuevos conservados (contenido/adjuntos,
+ * objetivos/notas, horario/días laborales/tema, categoría/nivel de pádel, y ahora el
+ * precio propio por alumno en grupales, migrando el precio repartido). No descarta nada.
  */
-export function normalizeToV7(raw: unknown): AgendaData {
+export function normalizeToV8(raw: unknown): AgendaData {
   return migrateV2toV3(normalizeToV2(raw), raw);
 }

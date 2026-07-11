@@ -105,6 +105,12 @@ export interface ClassParticipant {
   studentId: string | null;
   name: string;
   discount?: Discount;
+  /**
+   * Precio PROPIO del alumno en una clase grupal (v8): cada uno paga su importe, no se
+   * prorratea. En individual no se usa (el precio va en `ClassEntry.price`). Ausente en
+   * datos viejos: la migración le asigna su prorrateo (precio ÷ cantidad).
+   */
+  price?: number;
 }
 
 /** Estado de una clase en la agenda (distinto del estado de cobro, que se deriva). */
