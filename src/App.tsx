@@ -27,9 +27,11 @@ import SyncCheck from './components/SyncCheck';
 import Spinner from './components/Spinner';
 import ReminderEditModal from './components/ReminderEditModal';
 import RemindersPanel from './components/RemindersPanel';
+import FabMenu from './components/FabMenu';
+import Confetti from './components/Confetti';
 import { useReminders } from './hooks/useReminders';
 import { useAgenda } from './state/AgendaContext';
-import { startOfWeek } from './lib/date';
+import { dayKey, startOfWeek } from './lib/date';
 import type { ClassEntry, ClassFormTarget, Student } from './types';
 
 /** Orquesta qué vista y qué modal está abierto; el estado de datos vive en AgendaContext. */
@@ -39,6 +41,7 @@ function AppShell() {
   const [view, setView] = useState<ViewMode>('anual');
   const [reminderTarget, setReminderTarget] = useState<{ day: string; hour: number } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [newStudentOpen, setNewStudentOpen] = useState(false);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [weekAnchor, setWeekAnchor] = useState(() => new Date());
   const [openDay, setOpenDay] = useState<string | null>(null);
@@ -154,6 +157,17 @@ function AppShell() {
 
       {editStudent && <StudentFormModal student={editStudent} onClose={() => setEditStudent(null)} />}
 
+      {newStudentOpen && (
+        <StudentFormModal
+          student={null}
+          onClose={() => setNewStudentOpen(false)}
+          onSaved={(s) => {
+            setNewStudentOpen(false);
+            setProfileId(s.id);
+          }}
+        />
+      )}
+
       {payTarget && (
         <PaymentFormModal
           studentId={payTarget.studentId}
@@ -186,8 +200,11 @@ function AppShell() {
         <RemindersPanel due={due} upcoming={upcoming} onOpenDay={setOpenDay} onClose={() => setRemindersOpen(false)} />
       )}
 
+      <FabMenu onNewClass={() => setOpenDay(dayKey(new Date()))} onNewStudent={() => setNewStudentOpen(true)} />
+
       <UndoToast />
       <SyncCheck />
+      <Confetti />
     </div>
   );
 }

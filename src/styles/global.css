@@ -3098,8 +3098,8 @@ textarea:focus {
 /* 9) Check verde discreto de "guardado en la nube". */
 .sync-check {
   position: fixed;
-  bottom: 16px;
-  right: 16px;
+  bottom: 88px; /* arriba del botón flotante (+) */
+  right: 20px;
   z-index: 250;
   display: flex;
   align-items: center;
@@ -3277,6 +3277,157 @@ textarea:focus {
 .reminder-row__when {
   font-size: 12px;
   color: var(--muted);
+}
+
+/* =========================================================================
+   Efectos — Tanda 4: gestos y festejos.
+   ========================================================================= */
+
+/* 1) Deslizar tarjeta de alumno hacia la izquierda para archivar. */
+.swipe-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+.swipe-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 18px;
+  background: var(--amber-dim);
+  border-radius: var(--radius-lg);
+}
+.swipe-bg__label {
+  color: var(--amber);
+  font-weight: 700;
+  font-size: 14px;
+}
+.swipe-wrap .student-card {
+  position: relative;
+  width: 100%;
+  touch-action: pan-y; /* deja el scroll vertical y captura el gesto horizontal */
+}
+
+/* 2) Botón flotante (+) con abanico de acciones rápidas. */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+.fab-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+}
+.fab__main {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--orange);
+  color: #fff;
+  font-size: 30px;
+  line-height: 1;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease, background 0.15s ease;
+}
+.fab--open .fab__main {
+  transform: rotate(135deg);
+  background: var(--blue);
+}
+.fab__action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  opacity: 0;
+  transform: translateY(14px) scale(0.9);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.fab--open .fab__action {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.fab--open .fab__action--1 {
+  transition-delay: 0.03s;
+}
+.fab--open .fab__action--2 {
+  transition-delay: 0.07s;
+}
+.fab__label {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.fab__ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: var(--shadow);
+}
+
+/* 3) Modo foco del turno: al pasar el cursor por la agenda del día, los otros turnos
+      se atenúan y se realza el que estás mirando (sutil, no un blackout). */
+.day-agenda__slots .day-slot--filled {
+  transition: opacity 0.2s ease, background-color 0.35s ease, box-shadow 0.35s ease;
+}
+.day-agenda__slots:hover .day-slot--filled {
+  opacity: 0.5;
+}
+.day-agenda__slots .day-slot--filled:hover {
+  opacity: 1;
+}
+
+/* 4) Confeti / pelotitas del festejo (cierre de caja). */
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 300;
+  overflow: hidden;
+}
+.confetti__piece {
+  position: absolute;
+  top: -14px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  opacity: 0;
+  animation-name: confettiFall;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+}
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-14px) translateX(0) rotate(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(105vh) translateX(var(--drift, 0)) rotate(540deg);
+    opacity: 0.9;
+  }
 }
 
 /* Respeta prefers-reduced-motion: reduce todo al mínimo para no marear. */

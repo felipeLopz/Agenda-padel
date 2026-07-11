@@ -25,7 +25,7 @@ type RankFilter = 'todos' | PadelRank;
 
 /** Sección "Alumnos": lista, filtros y acceso a fichas. */
 export default function StudentsView({ onOpenDay }: StudentsViewProps) {
-  const { data } = useAgenda();
+  const { data, setStudentActive } = useAgenda();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('activos');
   const [catFilter, setCatFilter] = useState<CategoryFilter>('todos');
@@ -113,6 +113,7 @@ export default function StudentsView({ onOpenDay }: StudentsViewProps) {
             student={s}
             classes={countStudentClasses(data, s.id)}
             onClick={() => setProfileId(s.id)}
+            onArchive={() => setStudentActive(s.id, !s.active)}
           />
         ))}
         {students.length === 0 &&

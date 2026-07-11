@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { formatCurrency } from '../lib/format';
 import { cashClose } from '../lib/money';
+import { celebrate } from '../lib/feedback';
 
 interface CashCloseModalProps {
   onClose: () => void;
@@ -54,6 +55,19 @@ export default function CashCloseModal({ onClose }: CashCloseModalProps) {
             <span>Pendiente de las clases del día</span>
             <strong className="text-pending">{formatCurrency(close.pending)}</strong>
           </div>
+        </div>
+
+        <div className="class-form__actions">
+          <button
+            className="btn btn--primary"
+            onClick={() => {
+              // Festejo solo si hubo plata cobrada en el día (no en cada apertura).
+              if (close.totalCollected > 0) celebrate();
+              onClose();
+            }}
+          >
+            ✓ Cerrar caja del día
+          </button>
         </div>
       </div>
     </Modal>

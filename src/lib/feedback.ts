@@ -2,6 +2,15 @@
 // Es SOLO UX; no toca datos ni plata. El sonido viene apagado por defecto y solo suena
 // si el usuario lo activa en Configuración.
 
+/** Dispara un festejo (confeti), escuchado por el componente <Confetti/>. Solo visual. */
+export function celebrate(): void {
+  try {
+    window.dispatchEvent(new CustomEvent('padel:celebrate'));
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Vibración háptica sutil en el celular, si el dispositivo lo permite. */
 export function haptic(ms: number | number[] = 12): void {
   try {
