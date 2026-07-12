@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAgenda } from '../state/AgendaContext';
 import { newId } from '../lib/id';
 import {
@@ -6,6 +6,7 @@ import {
   findStudentByName,
   makeStudentFromName,
   participantName,
+  studentActivityScore,
   suggestStudents,
 } from '../lib/students';
 import type { ClassParticipant } from '../types';
@@ -36,12 +37,15 @@ export default function StudentPicker({
   const { data, upsertStudent } = useAgenda();
   const [open, setOpen] = useState(false);
 
+  // Ranking de actividad (frecuencia + recencia): los que vienen más seguido/recién primero.
+  const activityRank = useMemo(() => studentActivityScore(data), [data.days]);
+
   // El texto visible se deriva del participante: para vinculados es el nombre
   // "en vivo" de la ficha; para sueltos, el texto tipeado.
   const text = participantName(participant, data.students);
   const linked = Boolean(participant.studentId && data.students[participant.studentId]);
 
-  const suggestions = open ? suggestStudents(text, data.students, excludeIds) : [];
+  const suggestions = open ? suggestStudents(text, data.students, excludeIds, 6, activityRank) : [];
   const exactMatch = findStudentByName(text, data.students);
   const canCreate = open && text.trim().length > 0 && !exactMatch;
 

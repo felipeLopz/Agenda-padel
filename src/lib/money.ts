@@ -447,6 +447,45 @@ export function dayDebtors(
     .sort((a, b) => b.amount - a.amount);
 }
 
+/**
+ * Resumen de deuda de un alumno para mostrar al atenderlo: cuánto debe ($) y en cuántas
+ * clases (las participaciones impagas, sin contar las cubiertas por pack). Solo LEE el ledger.
+ */
+export function studentDebt(ledger: Ledger, studentId: string): { amount: number; classes: number } {
+  const acc = ledger.byStudent[studentId];
+  if (!acc) return { amount: 0, classes: 0 };
+  let classes = 0;
+  for (const p of acc.participations) {
+    if (!p.coveredByPack && p.owed - p.paidToward > 0.0001) classes += 1;
+  }
+  return { amount: Math.max(0, acc.balance), classes };
+}
+
+/**
+ * Alumnos que quedaron debiendo por las clases de un MES (year, month 0-indexado): monto =
+ * lo que les falta pagar de esas clases. Deriva del ledger (mismos números que la Caja), no
+ * calcula plata nueva. Ordenados de mayor a menor deuda.
+ */
+export function monthDebtors(
+  ledger: Ledger,
+  year: number,
+  month: number
+): Array<{ studentId: string; amount: number }> {
+  const byStudent: Record<string, number> = {};
+  for (const acc of Object.values(ledger.byStudent)) {
+    for (const p of acc.participations) {
+      if (p.coveredByPack) continue;
+      const [y, m] = p.day.split('-').map(Number); // "AÑO-MES0-DIA"
+      if (y !== year || m !== month) continue;
+      const remaining = p.owed - p.paidToward;
+      if (remaining > 0.0001) byStudent[p.studentId] = (byStudent[p.studentId] ?? 0) + remaining;
+    }
+  }
+  return Object.entries(byStudent)
+    .map(([studentId, amount]) => ({ studentId, amount }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 export interface Profit {
   income: number;
   expenses: number;

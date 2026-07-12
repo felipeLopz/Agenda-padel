@@ -12,6 +12,7 @@ import {
 import type {
   AgendaData,
   ClassEntry,
+  ClassTemplate,
   DayBlock,
   Expense,
   Pack,
@@ -102,6 +103,10 @@ interface AgendaContextValue {
   deleteExpense: (id: string) => void;
   setPaymentMethods: (methods: PaymentMethod[]) => void;
   setSettings: (settings: Settings) => void;
+  /** Guarda un turno como plantilla reusable (solo prellenado; no toca la plata). Devuelve el id. */
+  saveTemplate: (input: Omit<ClassTemplate, 'id'>) => string;
+  /** Borra una plantilla de turno. */
+  deleteTemplate: (id: string) => void;
   // --- Agenda avanzada (v4) ---
   /** Crea una serie recurrente a partir de una clase. Devuelve cuántas creó/omitió. */
   createSeries: (
@@ -496,6 +501,13 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
       setPaymentMethods: (methods) => dispatch({ type: 'SET_PAYMENT_METHODS', payload: methods }),
       setSettings: (settings) => dispatch({ type: 'SET_SETTINGS', payload: settings }),
+
+      saveTemplate: (input) => {
+        const id = newId();
+        dispatch({ type: 'ADD_TEMPLATE', payload: { ...input, id } });
+        return id;
+      },
+      deleteTemplate: (id) => dispatch({ type: 'DELETE_TEMPLATE', payload: { id } }),
 
       createSeries: (startDay, start, entry, recurrence) => {
         const seriesId = newId();

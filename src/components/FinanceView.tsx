@@ -11,6 +11,7 @@ import {
   monthProjection,
   netProfit,
   expensesInPeriod,
+  monthDebtors,
 } from '../lib/money';
 import type { Expense } from '../types';
 import ExpenseFormModal from './ExpenseFormModal';
@@ -41,6 +42,8 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
   const toISO = `${year}-${pad2(month + 1)}-31`;
   const income = incomeByMethod(data, fromISO, toISO);
   const monthExpenses = expensesInPeriod(data, year, month);
+  // Alumnos que no pagaron las clases de ESTE mes (deriva del ledger, mismos números).
+  const monthOwers = monthDebtors(ledger, year, month);
   const slideDir = useSlideDirection(year * 12 + month);
 
   return (
@@ -151,6 +154,27 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
               );
             })}
             {ledger.debtors.length === 0 && <p className="search-empty">Nadie debe plata. 🎉</p>}
+          </div>
+        </section>
+
+        {/* Deudores del mes: quiénes no pagaron las clases de este mes (mismos números que la caja). */}
+        <section className="finance-card">
+          <h3>No pagaron ({MONTH_NAMES[month]})</h3>
+          <div className="finance-stat finance-stat--strong">
+            <span>Pendiente del mes</span>
+            <strong className="text-pending">{formatCurrency(monthOwers.reduce((s, d) => s + d.amount, 0))}</strong>
+          </div>
+          <div className="debtors-list">
+            {monthOwers.map((d) => {
+              const student = data.students[d.studentId];
+              return (
+                <button key={d.studentId} className="debtor-row" onClick={() => onOpenStudent(d.studentId)}>
+                  <span>{student ? displayName(student) : 'Alumno'}</span>
+                  <span className="text-pending">{formatCurrency(d.amount)}</span>
+                </button>
+              );
+            })}
+            {monthOwers.length === 0 && <p className="search-empty">Todos al día este mes. 🎉</p>}
           </div>
         </section>
 

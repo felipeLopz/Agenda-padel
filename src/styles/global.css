@@ -3956,3 +3956,168 @@ textarea:focus {
 .btn--danger:hover {
   filter: brightness(1.08);
 }
+
+/* -------------------------------------------------------------------------
+   Comodidades: carga veloz, menos escritura y avisos al profe
+   ------------------------------------------------------------------------- */
+
+/* Carga veloz: "igual que el anterior" + chips de plantillas. */
+.quick-fill-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.template-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.template-chip__apply {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.template-chip__apply:hover {
+  background: var(--bg-card-hover);
+}
+.template-chip__del {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 9px;
+  cursor: pointer;
+}
+.template-chip__del:hover {
+  color: var(--danger);
+}
+
+/* Guardar como plantilla (input + botones). */
+.template-save {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.template-save input {
+  flex: 1;
+  min-width: 160px;
+}
+
+/* Botones de duración rápida (30 / 60 / 90 + otra). */
+.quick-dur {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.quick-dur__btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.quick-dur__btn--on {
+  background: rgba(47, 107, 255, 0.16);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.quick-dur__select {
+  width: auto;
+  flex: 1;
+  min-width: 90px;
+}
+
+/* Botones de montos frecuentes (pago / precio). */
+.amount-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.amount-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.amount-chip:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+/* Temas de contenido de un toque. */
+.topic-suggest {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.topic-suggest__btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.topic-suggest__btn--on {
+  background: rgba(47, 107, 255, 0.16);
+  border-color: var(--blue);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+/* Cumpleaños (chip) y banner de cumple en Hoy. */
+.today-line__bday {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--amber);
+}
+.today-bday-banner {
+  background: rgba(255, 138, 61, 0.12);
+  border: 1px solid rgba(255, 138, 61, 0.4);
+  color: var(--ink);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+/* Huecos libres del día (chips para meter a alguien). */
+.today-free {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.today-free__label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.today-free__slot {
+  border: 1px dashed var(--green);
+  background: rgba(45, 193, 122, 0.08);
+  color: var(--green);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}

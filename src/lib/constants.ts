@@ -34,8 +34,8 @@ export const STORAGE_KEY = 'agenda-padel:data';
 
 export const DEFAULT_PRICES: Prices = { grupal: 4000, indiv: 12000 };
 
-/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→…→v11. */
-export const DATA_VERSION = 11;
+/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→…→v12. */
+export const DATA_VERSION = 12;
 
 /**
  * Primera versión con "agenda de tiempo real": la clave del día es la hora de inicio en

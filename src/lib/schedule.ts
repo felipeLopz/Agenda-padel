@@ -1,8 +1,11 @@
 // Horario de trabajo configurable (v6): franjas por día y días laborales.
 // Reemplaza al HOURS fijo. Todo con defaults para compatibilidad con datos v5.
 
-import type { AgendaData, DayBlock, DaySlots, Settings } from '../types';
+import type { AgendaData, ClassEntry, DayBlock, DaySlots, Settings } from '../types';
 import { DEFAULT_WORKDAYS, HOURS } from './constants';
+import { parseDayKey } from './date';
+import { classState, isHourBlocked } from './classMeta';
+import { findOverlapStart } from './time';
 
 /** Opciones de días de la semana (lunes primero), value = Date.getDay(). */
 export const WEEKDAY_OPTIONS: Array<{ value: number; label: string }> = [
@@ -77,6 +80,49 @@ export function displayHoursForDays(settings: Settings, data: AgendaData, dayKey
     if (slots) for (const startStr of Object.keys(slots)) set.add(Math.floor(Number(startStr) / 60));
   }
   return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * Horas "en punto" del horario laboral que están libres ese día (sin clase que se pise con
+ * [h, h+1) y sin bloqueo). Sirve para el aviso de huecos libres. Solo LEE datos.
+ */
+export function freeHourSlots(settings: Settings, data: AgendaData, dayKey: string): number[] {
+  const slots = data.days[dayKey];
+  const block = data.blocks[dayKey];
+  const out: number[] = [];
+  for (const h of scheduleHours(settings)) {
+    if (isHourBlocked(block, h)) continue;
+    if (findOverlapStart(slots, h * 60, 60) != null) continue; // hay una clase que ocupa esa hora
+    out.push(h);
+  }
+  return out;
+}
+
+/**
+ * Turno cronológicamente anterior a (day, start): el último no cancelado con fecha/hora
+ * previa. Sirve para el atajo "igual que el anterior" (copiar el turno previo). Solo LEE.
+ */
+export function previousClass(
+  data: AgendaData,
+  day: string,
+  start: number
+): { day: string; start: number; entry: ClassEntry } | undefined {
+  const target = parseDayKey(day).getTime() + start * 60000;
+  let best: { day: string; start: number; entry: ClassEntry } | undefined;
+  let bestTime = -Infinity;
+  for (const [d, slots] of Object.entries(data.days)) {
+    const dTime = parseDayKey(d).getTime();
+    for (const [sStr, entry] of Object.entries(slots)) {
+      if (classState(entry) === 'cancelada') continue;
+      const t = dTime + Number(sStr) * 60000;
+      if (t >= target) continue; // solo turnos anteriores
+      if (t > bestTime) {
+        bestTime = t;
+        best = { day: d, start: Number(sStr), entry };
+      }
+    }
+  }
+  return best;
 }
 
 /** Cantidad de días laborales en un período (mes 0-indexado, o todo el año si month=null). */

@@ -20,6 +20,7 @@ function emptyData(): AgendaData {
     paymentMethods: [...DEFAULT_PAYMENT_METHODS],
     settings: { ...DEFAULT_SETTINGS },
     blocks: {},
+    templates: {},
   };
 }
 

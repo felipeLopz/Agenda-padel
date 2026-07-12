@@ -10,6 +10,8 @@
 // v11 (Asistencia): cada participante puede tener `attended` (true/false). Es solo un
 //   registro de asistencia, NO afecta la plata. Campo opcional: se conserva si viene,
 //   y los datos viejos quedan idénticos (sin marcar).
+// v12 (Plantillas de turno): se agrega `templates` (turnos guardados con nombre para reusar).
+//   Aditivo y opcional: los datos viejos quedan idénticos (templates = {}). No tocan la plata.
 //
 // `normalizeData` (en storage.ts) corre al cargar el localStorage y al importar
 // cualquier JSON. La cadena es: normalizeToV2 (maneja v1/v2/v3) → migrateV2toV3.
@@ -24,6 +26,7 @@ import type {
   Attachment,
   ClassParticipant,
   ClassState,
+  ClassTemplate,
   ClassType,
   DayBlock,
   Discount,
@@ -560,7 +563,51 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
     paymentMethods,
     settings,
     blocks,
+    templates: normalizeTemplates(src.templates, v2.students),
   };
+}
+
+/** Sanea las plantillas de turno (v12): tipo, alumnos, precio, duración y contenido. */
+function normalizeTemplates(raw: unknown, students: Record<string, Student>): Record<string, ClassTemplate> {
+  const out: Record<string, ClassTemplate> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const rawT of Object.values(raw as Record<string, unknown>)) {
+    if (!rawT || typeof rawT !== 'object') continue;
+    const t = rawT as Partial<ClassTemplate> & { participants?: unknown };
+    const name = typeof t.name === 'string' ? t.name.trim() : '';
+    if (!name) continue;
+    const type: ClassType = t.type === 'indiv' ? 'indiv' : 'grupal';
+    const participants = Array.isArray(t.participants)
+      ? (t.participants as unknown[])
+          .map((p): ClassParticipant | null => {
+            if (!p || typeof p !== 'object') return null;
+            const part = p as Partial<ClassParticipant>;
+            const pName = typeof part.name === 'string' ? part.name : '';
+            const studentId =
+              typeof part.studentId === 'string' && students[part.studentId] ? part.studentId : null;
+            if (!studentId && !pName.trim()) return null;
+            return {
+              studentId,
+              name: pName,
+              discount: parseDiscount(part.discount),
+              price: typeof part.price === 'number' && part.price >= 0 ? part.price : undefined,
+            };
+          })
+          .filter((p): p is ClassParticipant => p !== null)
+      : [];
+    if (participants.length === 0) continue; // una plantilla sin alumnos no sirve
+    const id = typeof t.id === 'string' && t.id ? t.id : newId();
+    out[id] = {
+      id,
+      name,
+      type,
+      participants,
+      price: Number(t.price) || 0,
+      duration: typeof t.duration === 'number' && t.duration > 0 ? t.duration : undefined,
+      content: parseStringList(t.content),
+    };
+  }
+  return out;
 }
 
 /** Sanea los bloqueos de disponibilidad (v4) desde un JSON externo. */

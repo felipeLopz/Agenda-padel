@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { useDialog } from '../state/DialogContext';
 import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS, COMMON_TOPICS } from '../lib/constants';
-import { suggestedPrice } from '../lib/pricing';
+import { suggestedPrice, frequentAmounts } from '../lib/pricing';
+import { previousClass } from '../lib/schedule';
 import { participantName } from '../lib/students';
 import { formatCurrency } from '../lib/format';
 import { classDuration, classState, STATE_LABEL, STATES } from '../lib/classMeta';
@@ -15,7 +16,17 @@ import StudentPicker from './StudentPicker';
 import DiscountEditor from './DiscountEditor';
 import AttachmentsEditor from './AttachmentsEditor';
 import NumberInput from './NumberInput';
+import AmountButtons from './AmountButtons';
 import RecurrenceFields from './RecurrenceFields';
+
+/** Campos que se pueden prellenar desde el turno anterior o desde una plantilla. */
+interface PrefillSource {
+  type: ClassType;
+  participants: ClassParticipant[];
+  price: number;
+  duration?: number;
+  content?: string[];
+}
 
 interface ClassFormModalProps {
   target: ClassFormTarget;
@@ -32,7 +43,8 @@ function emptyParticipant(): ClassParticipant {
 
 /** Alta y edición de una clase, con duración, estado y recurrencia. */
 export default function ClassFormModal({ target, onClose, onReminder, onRepeat }: ClassFormModalProps) {
-  const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
+  const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, createSeries, updateSeries, saveTemplate, deleteTemplate } =
+    useAgenda();
   const dialog = useDialog();
   // `initialStart` es la franja actual de la clase (su clave); `start` es la elegida en el form.
   const { day, start: initialStart, entry } = target;
@@ -59,6 +71,69 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
   // RecurrenceInput ya armado (misma UI/lógica que al convertir un turno en serie).
   const [repeat, setRepeat] = useState(false);
   const [recurrence, setRecurrence] = useState<RecurrenceInput>({ everyWeeks: 1, end: { type: 'count', count: 4 } });
+
+  // Guardar el turno como plantilla (nombre + toggle).
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+
+  // Atajos de carga veloz: el turno anterior (para "igual que el anterior") y los montos
+  // frecuentes (botones de precio). Solo LEEN datos, no cambian ningún cálculo.
+  const previous = useMemo(() => (entry ? undefined : previousClass(data, day, initialStart)), [entry, data.days, day, initialStart]);
+  const freqAmounts = useMemo(() => frequentAmounts(data), [data.payments, data.prices]);
+  const templates = Object.values(data.templates);
+
+  /** Prellena el formulario desde el turno anterior o una plantilla (alumnos, precios, etc.). */
+  function prefillFrom(src: PrefillSource) {
+    setType(src.type);
+    // Copia los alumnos SIN la asistencia (es de esa fecha) y con sus precios/descuentos.
+    setParticipants(
+      src.participants.length
+        ? src.participants.map((p) => ({ studentId: p.studentId, name: p.name, price: p.price, discount: p.discount }))
+        : [emptyParticipant()]
+    );
+    setPrice(src.price);
+    setPriceTouched(true); // ya viene un precio: no autosugerir
+    setDuration(src.duration ?? 60);
+    setContent(src.content ?? []);
+    setShowDiscounts(src.participants.some((p) => p.discount));
+  }
+
+  /** Agrega o quita un tema de contenido con un toque (chips de temas de pádel). */
+  function toggleTopic(t: string) {
+    const exists = content.some((c) => c.toLowerCase() === t.toLowerCase());
+    setContent(exists ? content.filter((c) => c.toLowerCase() !== t.toLowerCase()) : [...content, t]);
+  }
+
+  function handleSaveTemplate() {
+    const name = templateName.trim();
+    if (!name) {
+      void dialog.alert('Poné un nombre para la plantilla.');
+      return;
+    }
+    const valid = participants.filter((p) => p.studentId || p.name.trim());
+    if (valid.length === 0) {
+      void dialog.alert('Cargá al menos un alumno para guardar la plantilla.');
+      return;
+    }
+    const tParticipants = (type === 'indiv' ? valid.slice(0, 1) : valid).map((p) => ({
+      studentId: p.studentId,
+      name: p.studentId ? participantName(p, data.students) : p.name.trim(),
+      discount: p.discount,
+      price: type === 'grupal' ? (p.price ?? data.prices.grupal) : undefined,
+    }));
+    const tPrice = type === 'grupal' ? tParticipants.reduce((sum, p) => sum + (p.price ?? 0), 0) : Number(price) || 0;
+    saveTemplate({
+      name,
+      type,
+      participants: tParticipants,
+      price: tPrice,
+      duration: duration !== 60 ? duration : undefined,
+      content: content.length ? content : undefined,
+    });
+    setTemplateName('');
+    setShowSaveTemplate(false);
+    void dialog.alert(`Plantilla «${name}» guardada.`);
+  }
 
   // El importe individual se autosugiere (si no lo tocaste). En grupal el total sale de
   // la SUMA de los precios por alumno (v8), así que no hay un total a autocalcular acá.
@@ -210,6 +285,35 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
   return (
     <Modal title={title} onClose={onClose}>
       <div className="class-form">
+        {/* Carga veloz (solo al crear): copiar el turno anterior o una plantilla guardada. */}
+        {!entry && (previous || templates.length > 0) && (
+          <div className="class-form__row quick-fill-row">
+            {previous && (
+              <button type="button" className="btn btn--ghost btn--small" onClick={() => prefillFrom(previous.entry)}>
+                ↺ Igual que el anterior
+              </button>
+            )}
+            {templates.map((t) => (
+              <span key={t.id} className="template-chip">
+                <button type="button" className="template-chip__apply" onClick={() => prefillFrom(t)}>
+                  📋 {t.name}
+                </button>
+                <button
+                  type="button"
+                  className="template-chip__del"
+                  aria-label={`Borrar plantilla ${t.name}`}
+                  onClick={async () => {
+                    if (await dialog.confirm(`¿Borrar la plantilla «${t.name}»?`, { danger: true, confirmLabel: 'Borrar' }))
+                      deleteTemplate(t.id);
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="class-form__row">
           <label>Tipo de clase</label>
           <div className="segmented">
@@ -254,6 +358,7 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
                       value={p.price ?? data.prices.grupal}
                       onChange={(n) => updateParticipant(idx, { ...p, price: n })}
                     />
+                    <AmountButtons amounts={freqAmounts} onPick={(n) => updateParticipant(idx, { ...p, price: n })} />
                   </div>
                 )}
                 {showDiscounts && (
@@ -288,13 +393,30 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
           </div>
           <div>
             <label>Duración</label>
-            <select className="select" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-              {DURATION_OPTIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d} min
-                </option>
+            <div className="quick-dur">
+              {[30, 60, 90].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`quick-dur__btn${duration === d ? ' quick-dur__btn--on' : ''}`}
+                  onClick={() => setDuration(d)}
+                >
+                  {d}′
+                </button>
               ))}
-            </select>
+              <select
+                className="select quick-dur__select"
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+                aria-label="Otra duración"
+              >
+                {DURATION_OPTIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d} min
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -305,6 +427,13 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
               <NumberInput
                 value={price}
                 onChange={(n) => {
+                  setPriceTouched(true);
+                  setPrice(n);
+                }}
+              />
+              <AmountButtons
+                amounts={freqAmounts}
+                onPick={(n) => {
                   setPriceTouched(true);
                   setPrice(n);
                 }}
@@ -350,6 +479,23 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
               ))}
             </div>
           )}
+          {/* Temas de pádel de un toque: se agregan/quitan sin escribir. */}
+          <div className="topic-suggest">
+            {COMMON_TOPICS.map((t) => {
+              const on = content.some((c) => c.toLowerCase() === t.toLowerCase());
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  className={`topic-suggest__btn${on ? ' topic-suggest__btn--on' : ''}`}
+                  onClick={() => toggleTopic(t)}
+                >
+                  {on ? '✓ ' : '+ '}
+                  {t}
+                </button>
+              );
+            })}
+          </div>
           <div className="tag-editor__input">
             <input
               type="text"
@@ -420,6 +566,36 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
             )}
           </div>
         )}
+
+        {/* Guardar este turno como plantilla reusable (ej: "Grupo martes"). */}
+        <div className="class-form__row">
+          {showSaveTemplate ? (
+            <div className="template-save">
+              <input
+                type="text"
+                value={templateName}
+                placeholder="Nombre de la plantilla (ej: Grupo martes)"
+                onChange={(e) => setTemplateName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveTemplate();
+                  }
+                }}
+              />
+              <button type="button" className="btn btn--small btn--primary" onClick={handleSaveTemplate}>
+                Guardar plantilla
+              </button>
+              <button type="button" className="btn btn--small btn--ghost" onClick={() => setShowSaveTemplate(false)}>
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="link-btn" onClick={() => setShowSaveTemplate(true)}>
+              📋 Guardar como plantilla
+            </button>
+          )}
+        </div>
 
         <div className="class-form__actions">
           {entry && (

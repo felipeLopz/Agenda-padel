@@ -1,6 +1,7 @@
 import type {
   AgendaData,
   ClassEntry,
+  ClassTemplate,
   DayBlock,
   Expense,
   Pack,
@@ -45,7 +46,9 @@ export type AgendaAction =
   | { type: 'UPSERT_EXPENSE'; payload: Expense }
   | { type: 'DELETE_EXPENSE'; payload: { id: string } }
   | { type: 'SET_PAYMENT_METHODS'; payload: PaymentMethod[] }
-  | { type: 'SET_SETTINGS'; payload: Settings };
+  | { type: 'SET_SETTINGS'; payload: Settings }
+  | { type: 'ADD_TEMPLATE'; payload: ClassTemplate }
+  | { type: 'DELETE_TEMPLATE'; payload: { id: string } };
 
 /** Quita una entrada de un Record por id, devolviendo un nuevo Record. */
 function without<T>(record: Record<string, T>, id: string): Record<string, T> {
@@ -339,6 +342,13 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
 
     case 'SET_SETTINGS':
       return { ...state, settings: action.payload };
+
+    case 'ADD_TEMPLATE':
+      // Plantilla de turno (solo prellenado): no toca días, pagos ni ninguna cifra.
+      return { ...state, templates: { ...state.templates, [action.payload.id]: action.payload } };
+
+    case 'DELETE_TEMPLATE':
+      return { ...state, templates: without(state.templates, action.payload.id) };
 
     default:
       return state;

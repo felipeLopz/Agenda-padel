@@ -3,9 +3,9 @@ import { useAgenda } from '../state/AgendaContext';
 import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
-import { dayTotals, classStatus, shareBreakdown, STATUS_LABEL, classKey } from '../lib/money';
+import { dayTotals, classStatus, shareBreakdown, STATUS_LABEL, classKey, studentDebt } from '../lib/money';
 import { displayHoursForDay } from '../lib/schedule';
-import { participantName, classNames } from '../lib/students';
+import { participantName, classNames, isBirthdayOn } from '../lib/students';
 import { describeDiscount } from '../lib/discount';
 import {
   classState,
@@ -214,10 +214,24 @@ export default function DayAgendaModal({
                 Object.values(data.payments).some(
                   (pay) => pay.studentId === p.studentId && pay.classRef?.day === day && pay.classRef?.start === start
                 );
+              // Deuda total del alumno (para tenerla presente al atenderlo) y cumple del día.
+              const debt = p.studentId ? studentDebt(ledger, p.studentId) : { amount: 0, classes: 0 };
+              const birthday = student ? isBirthdayOn(student, day) : false;
               return (
                 <div key={idx} className={`student-line${isExiting(rowKey) ? ' is-exiting' : ''}`}>
                   <span className="student-line__name">{participantName(p, data.students)}</span>
+                  {birthday && (
+                    <span className="today-line__bday" title="¡Cumple años este día!">
+                      🎂 ¡cumple!
+                    </span>
+                  )}
                   <span className="student-line__amount">{formatCurrency(bd.net)}</span>
+                  {debt.amount > 0.5 && (
+                    <span className="today-line__debt" title="Deuda total de este alumno">
+                      debe{debt.classes > 0 ? ` ${debt.classes} ${debt.classes === 1 ? 'clase' : 'clases'} ·` : ''}{' '}
+                      {formatCurrency(debt.amount)}
+                    </span>
+                  )}
                   {bd.fixedDiscount && (
                     <span className="disc-tag disc-tag--fija" title="Descuento fijo de la ficha">
                       −{describeDiscount(bd.fixedDiscount)} ficha

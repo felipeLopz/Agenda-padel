@@ -5,7 +5,9 @@ import { useAgenda } from '../state/AgendaContext';
 import { useDialog } from '../state/DialogContext';
 import { formatCurrency } from '../lib/format';
 import { displayName } from '../lib/students';
+import { frequentAmounts } from '../lib/pricing';
 import { downloadReceipt } from '../lib/receipt';
+import AmountButtons from './AmountButtons';
 import type { Payment } from '../types';
 
 interface PaymentFormModalProps {
@@ -71,6 +73,14 @@ export default function PaymentFormModal({ studentId, onClose, defaultAmount, cl
           <div>
             <label>Monto</label>
             <NumberInput value={amount} min={0} onChange={setAmount} />
+            {/* Atajos: el saldo pendiente y los montos que más usa el profe (no cambian cálculos). */}
+            <AmountButtons
+              amounts={[
+                ...(balance > 0.5 ? [Math.round(balance)] : []),
+                ...frequentAmounts(data).filter((n) => n !== Math.round(balance)),
+              ]}
+              onPick={setAmount}
+            />
           </div>
           <div>
             <label>Fecha</label>

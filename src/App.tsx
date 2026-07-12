@@ -103,7 +103,10 @@ function AppShell() {
           // `key={view}` remonta el contenido al cambiar de pestaña → transición suave.
           <div className="view-anim" key={view}>
             {view === 'hoy' && (
-              <TodayView onOpenClass={(start, entry) => openEditClass(dayKey(new Date()), start, entry)} />
+              <TodayView
+                onOpenClass={(start, entry) => openEditClass(dayKey(new Date()), start, entry)}
+                onNewClass={(start) => openNewClass(dayKey(new Date()), start)}
+              />
             )}
             {view === 'anual' && <AnnualView year={year} onOpenDay={setOpenDay} />}
             {view === 'semanal' && (

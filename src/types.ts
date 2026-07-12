@@ -271,8 +271,25 @@ export interface Settings {
   soundOnCollect?: boolean;
 }
 
+/**
+ * Plantilla de turno (v12): un turno guardado con un nombre para reusar (ej "Grupo martes").
+ * Guarda el tipo, los alumnos (con sus precios/descuentos) y la duración/contenido, PERO no
+ * un día ni una hora: se aplica al crear un turno nuevo. NO participa de la plata: es solo
+ * para prellenar el formulario más rápido.
+ */
+export interface ClassTemplate {
+  id: string;
+  name: string;
+  type: ClassType;
+  participants: ClassParticipant[];
+  /** Precio de lista (para individual). En grupal el total sale de los precios por alumno. */
+  price: number;
+  duration?: number;
+  content?: string[];
+}
+
 export interface AgendaData {
-  /** Versión del formato de datos (10 = agenda de tiempo real). Permite migraciones futuras. */
+  /** Versión del formato de datos (12 = plantillas de turno). Permite migraciones futuras. */
   version: number;
   prices: Prices;
   days: Record<DayKey, DaySlots>;
@@ -289,6 +306,8 @@ export interface AgendaData {
   settings: Settings;
   /** Bloqueos de disponibilidad por día (v4). */
   blocks: Record<DayKey, DayBlock>;
+  /** Plantillas de turno reusables (v12). No afectan la plata: solo prellenan el formulario. */
+  templates: Record<string, ClassTemplate>;
 }
 
 /** Franja (día + hora de inicio en minutos) que se crea o edita en el formulario de clase. */
