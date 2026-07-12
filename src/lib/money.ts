@@ -424,6 +424,29 @@ export function cashClose(data: AgendaData, ledger: Ledger, dayKey: string): Cas
   return { iso, byMethod, totalCollected, pending };
 }
 
+/**
+ * Alumnos que quedaron debiendo por las clases de UN día: monto = lo que le falta pagar a
+ * cada alumno en los turnos de ese día (su parte adeudada − lo ya pagado, sin contar lo
+ * cubierto por packs). NO calcula nada nuevo: agrega las participaciones que ya trae el
+ * `ledger`, así la SUMA de estos montos coincide exactamente con `cashClose().pending`.
+ */
+export function dayDebtors(
+  ledger: Ledger,
+  dayKey: string
+): Array<{ studentId: string; amount: number }> {
+  const byStudent: Record<string, number> = {};
+  for (const acc of Object.values(ledger.byStudent)) {
+    for (const p of acc.participations) {
+      if (p.day !== dayKey || p.coveredByPack) continue;
+      const remaining = p.owed - p.paidToward;
+      if (remaining > 0.0001) byStudent[p.studentId] = (byStudent[p.studentId] ?? 0) + remaining;
+    }
+  }
+  return Object.entries(byStudent)
+    .map(([studentId, amount]) => ({ studentId, amount }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 export interface Profit {
   income: number;
   expenses: number;

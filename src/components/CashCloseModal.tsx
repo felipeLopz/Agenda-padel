@@ -2,7 +2,8 @@ import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { formatCurrency } from '../lib/format';
-import { cashClose } from '../lib/money';
+import { cashClose, dayDebtors } from '../lib/money';
+import { displayName } from '../lib/students';
 import { celebrate } from '../lib/feedback';
 
 interface CashCloseModalProps {
@@ -26,7 +27,10 @@ export default function CashCloseModal({ onClose }: CashCloseModalProps) {
   const { data, ledger } = useAgenda();
   const [iso, setIso] = useState<string>(todayISO());
 
-  const close = cashClose(data, ledger, isoToDayKey(iso));
+  const dayKey = isoToDayKey(iso);
+  const close = cashClose(data, ledger, dayKey);
+  // Quiénes quedaron debiendo por los turnos de ese día (mismos números que el pendiente).
+  const debtors = dayDebtors(ledger, dayKey);
 
   return (
     <Modal title="Cierre de caja" onClose={onClose}>
@@ -55,6 +59,22 @@ export default function CashCloseModal({ onClose }: CashCloseModalProps) {
             <span>Pendiente de las clases del día</span>
             <strong className="text-pending">{formatCurrency(close.pending)}</strong>
           </div>
+
+          {/* Quiénes quedaron debiendo (para no olvidarse de cobrarle a nadie). */}
+          {debtors.length > 0 && (
+            <div className="cash-close__debtors">
+              <span className="cash-close__debtors-title">Quedaron debiendo</span>
+              {debtors.map((d) => {
+                const student = data.students[d.studentId];
+                return (
+                  <div key={d.studentId} className="cash-close__debtor">
+                    <span>{student ? displayName(student) : 'Alumno'}</span>
+                    <span className="text-pending">{formatCurrency(d.amount)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="class-form__actions">

@@ -7,6 +7,7 @@ import { participantName } from '../lib/students';
 import { classDuration, classState, isChargeable, STATE_LABEL, stateMoneyNote } from '../lib/classMeta';
 import { classRangeLabel } from '../lib/time';
 import AttendanceToggle from './AttendanceToggle';
+import CashCloseModal from './CashCloseModal';
 import type { ClassEntry } from '../types';
 
 interface TodayViewProps {
@@ -27,6 +28,7 @@ function currentMinutes(): number {
  */
 export default function TodayView({ onOpenClass }: TodayViewProps) {
   const { data, ledger, quickCollectClass, setAttendance } = useAgenda();
+  const [cashOpen, setCashOpen] = useState(false);
   // Se refresca cada minuto para que el "próximo turno" se vaya moviendo solo.
   const [nowMin, setNowMin] = useState(() => currentMinutes());
   useEffect(() => {
@@ -48,18 +50,29 @@ export default function TodayView({ onOpenClass }: TodayViewProps) {
   if (classes.length === 0) {
     return (
       <div className="today-view">
-        <h2 className="today-view__title">Hoy · {todayLabel}</h2>
+        <div className="today-view__head">
+          <h2 className="today-view__title">Hoy · {todayLabel}</h2>
+          <button className="btn btn--ghost today-view__close-btn" onClick={() => setCashOpen(true)}>
+            🧾 Cerrar el día
+          </button>
+        </div>
         <div className="today-empty">
           <span className="today-empty__emoji">🎾</span>
           <p>No tenés turnos hoy. ¡A descansar o a sumar alumnos!</p>
         </div>
+        {cashOpen && <CashCloseModal onClose={() => setCashOpen(false)} />}
       </div>
     );
   }
 
   return (
     <div className="today-view">
-      <h2 className="today-view__title">Hoy · {todayLabel}</h2>
+      <div className="today-view__head">
+        <h2 className="today-view__title">Hoy · {todayLabel}</h2>
+        <button className="btn btn--ghost today-view__close-btn" onClick={() => setCashOpen(true)}>
+          🧾 Cerrar el día
+        </button>
+      </div>
 
       <div className="today-list">
         {classes.map(({ start, entry }) => {
@@ -129,6 +142,8 @@ export default function TodayView({ onOpenClass }: TodayViewProps) {
           );
         })}
       </div>
+
+      {cashOpen && <CashCloseModal onClose={() => setCashOpen(false)} />}
     </div>
   );
 }

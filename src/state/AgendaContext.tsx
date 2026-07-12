@@ -87,6 +87,14 @@ interface AgendaContextValue {
   quickCollectClass: (day: string, start: number) => void;
   /** Deshace el cobro rápido de una clase (borra sus pagos). */
   undoCollectClass: (day: string, start: number) => void;
+  /**
+   * Cobro rápido de UN alumno dentro del turno: registra el pago por lo que le queda adeudado
+   * en esa clase (owed − pagado), con la fecha de hoy y el medio por defecto. Es el MISMO
+   * cobro que ya existía, solo que por alumno. Si ya está pago (o lo cubre un pack) no hace nada.
+   */
+  collectClassStudent: (day: string, start: number, studentId: string) => void;
+  /** Revierte el cobro rápido de UN alumno en una clase (borra solo SUS pagos atados a esa clase). */
+  undoCollectClassStudent: (day: string, start: number, studentId: string) => void;
   /** Crea un pack (bono prepago) + su pago de compra. */
   addPack: (input: { studentId: string; totalClasses: number; price: number; date: string; methodId: string }) => void;
   deletePack: (id: string) => void;
@@ -422,6 +430,36 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
 
       undoCollectClass: (day, start) => dispatch({ type: 'DELETE_PAYMENTS_BY_CLASS', payload: { day, start } }),
+
+      collectClassStudent: (day, start, studentId) => {
+        const entry = data.days[day]?.[String(start)];
+        if (!entry) return;
+        // MISMO cálculo que el cobro del turno completo, pero para un solo alumno: se cobra lo
+        // que le queda adeudado (owed − pagado) en ESA clase, derivado del ledger. No se toca
+        // ningún precio, prorrateo ni deuda; es el mismo pago que ya se podía registrar.
+        const part = ledger.byStudent[studentId]?.participations.find((pp) => pp.day === day && pp.start === start);
+        if (!part || part.coveredByPack) return; // sin deuda propia o cubierto por pack: no se cobra
+        const remaining = part.owed - part.paidToward;
+        if (remaining <= 0.0001) return; // ya está pago: NO se duplica
+        dispatch({
+          type: 'ADD_PAYMENT',
+          payload: {
+            id: newId(),
+            studentId,
+            amount: remaining,
+            methodId: data.settings.defaultMethodId,
+            date: todayISO(),
+            concept: 'Cobro de clase',
+            kind: 'clase',
+            classRef: { day, start },
+          },
+        });
+        playCollectSound(data.settings.soundOnCollect ?? false);
+        haptic();
+      },
+
+      undoCollectClassStudent: (day, start, studentId) =>
+        dispatch({ type: 'DELETE_PAYMENTS_BY_CLASS_STUDENT', payload: { day, start, studentId } }),
 
       addPack: (input) => {
         const packId = newId();

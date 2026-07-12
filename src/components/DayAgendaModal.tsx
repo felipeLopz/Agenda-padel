@@ -48,8 +48,18 @@ export default function DayAgendaModal({
   onRepeat,
   onBlockDay,
 }: DayAgendaModalProps) {
-  const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant, setAttendance } =
-    useAgenda();
+  const {
+    data,
+    ledger,
+    deleteClass,
+    deleteSeries,
+    quickCollectClass,
+    undoCollectClass,
+    collectClassStudent,
+    undoCollectClassStudent,
+    removeParticipant,
+    setAttendance,
+  } = useAgenda();
   const { isExiting, removeWithAnim } = useExitAnim();
   const date = parseDayKey(day);
   const slots = data.days[day];
@@ -184,6 +194,15 @@ export default function DayAgendaModal({
                 : undefined;
               const pStatus = part?.status;
               const rowKey = `${start}-${idx}`;
+              // Cobro rápido por alumno: lo que le queda adeudado en ESTA clase (owed − pagado).
+              const remaining = part && !part.coveredByPack ? part.owed - part.paidToward : 0;
+              const canCollect = Boolean(p.studentId) && remaining > 0.0001;
+              // ¿Ya tiene algún pago atado a ESTA clase? (para poder revertir su cobro rápido).
+              const hasClassPay =
+                Boolean(p.studentId) &&
+                Object.values(data.payments).some(
+                  (pay) => pay.studentId === p.studentId && pay.classRef?.day === day && pay.classRef?.start === start
+                );
               return (
                 <div key={idx} className={`student-line${isExiting(rowKey) ? ' is-exiting' : ''}`}>
                   <span className="student-line__name">{participantName(p, data.students)}</span>
@@ -202,12 +221,32 @@ export default function DayAgendaModal({
                   {pStatus && !part?.coveredByPack && (
                     <span className={`chip chip--status-${pStatus} chip--mini`}>{STATUS_LABEL[pStatus]}</span>
                   )}
-                  {p.studentId && pStatus !== 'pagada' && !part?.coveredByPack && (
+                  {/* Cobro rápido por alumno: registra el pago de lo que le queda (atajo del cobro). */}
+                  {canCollect && (
+                    <button
+                      className="btn btn--small btn--primary"
+                      onClick={() => collectClassStudent(day, start, p.studentId as string)}
+                    >
+                      💵 Cobrar {formatCurrency(remaining)}
+                    </button>
+                  )}
+                  {/* Pago con importe/medio/fecha a elección (para pagos parciales o distintos). */}
+                  {canCollect && (
                     <button
                       className="btn btn--tiny btn--ghost"
                       onClick={() => onRegisterPayment(p.studentId as string, { day, start })}
                     >
-                      Pago
+                      Pago…
+                    </button>
+                  )}
+                  {/* Revertir el cobro de este alumno en esta clase (si me equivoqué). */}
+                  {hasClassPay && (
+                    <button
+                      className="btn btn--tiny btn--ghost"
+                      onClick={() => undoCollectClassStudent(day, start, p.studentId as string)}
+                      title="Revertir el cobro de este alumno en esta clase"
+                    >
+                      ↩ Revertir
                     </button>
                   )}
                   {/* Asistencia (vino / no vino). Solo registro: no toca la plata. */}

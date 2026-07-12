@@ -1818,6 +1818,25 @@ textarea:focus {
   font-size: 13px;
   color: var(--muted);
 }
+/* Lista de "quedaron debiendo" en el cierre del día. */
+.cash-close__debtors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.cash-close__debtors-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cash-close__debtor {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
 
 /* Sección Caja (dashboard). */
 .finance-view {
@@ -3697,10 +3716,20 @@ textarea:focus {
   flex-direction: column;
   gap: 14px;
 }
+.today-view__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .today-view__title {
   font-size: 18px;
   font-weight: 800;
   text-transform: capitalize;
+}
+.today-view__close-btn {
+  font-size: 14px;
 }
 .today-list {
   display: flex;

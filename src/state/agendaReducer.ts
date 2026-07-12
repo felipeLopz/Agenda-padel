@@ -39,6 +39,7 @@ export type AgendaAction =
   | { type: 'ADD_PAYMENT'; payload: Payment }
   | { type: 'DELETE_PAYMENT'; payload: { id: string } }
   | { type: 'DELETE_PAYMENTS_BY_CLASS'; payload: { day: string; start: number } }
+  | { type: 'DELETE_PAYMENTS_BY_CLASS_STUDENT'; payload: { day: string; start: number; studentId: string } }
   | { type: 'ADD_PACK'; payload: { pack: Pack; payment: Payment } }
   | { type: 'DELETE_PACK'; payload: { id: string } }
   | { type: 'UPSERT_EXPENSE'; payload: Expense }
@@ -288,6 +289,19 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
       const payments = { ...state.payments };
       for (const [id, pay] of Object.entries(payments)) {
         if (pay.classRef && pay.classRef.day === day && pay.classRef.start === start) delete payments[id];
+      }
+      return { ...state, payments };
+    }
+
+    case 'DELETE_PAYMENTS_BY_CLASS_STUDENT': {
+      // Revertir el cobro rápido de UN alumno en una clase: borra solo SUS pagos atados a esa
+      // clase. No toca los pagos de los demás alumnos ni ningún cálculo de importes.
+      const { day, start, studentId } = action.payload;
+      const payments = { ...state.payments };
+      for (const [id, pay] of Object.entries(payments)) {
+        if (pay.studentId === studentId && pay.classRef && pay.classRef.day === day && pay.classRef.start === start) {
+          delete payments[id];
+        }
       }
       return { ...state, payments };
     }
