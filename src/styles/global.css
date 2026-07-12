@@ -924,6 +924,13 @@ textarea:focus {
   gap: 16px;
 }
 
+/* Fila de botones de acción (recordatorio / repetir): en línea y que envuelvan en celular. */
+.class-form__row--buttons {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .class-form__row--split > div {
   flex: 1;
   display: flex;

@@ -97,6 +97,17 @@ interface AgendaContextValue {
     entry: ClassEntry,
     recurrence: RecurrenceInput
   ) => { created: number; skipped: number };
+  /**
+   * Convierte un turno YA existente en el primero de una serie recurrente, sin rehacerlo:
+   * le pone un seriesId y crea las repeticiones en las semanas siguientes (misma recurrencia
+   * y mismo copiado que al crear desde cero). Devuelve cuántas creó y cuántas omitió por
+   * solaparse. Si no se puede crear ninguna repetición, no arma la serie (created = 0).
+   */
+  makeSeriesFromClass: (
+    day: string,
+    start: number,
+    recurrence: RecurrenceInput
+  ) => { created: number; skipped: number };
   /** Aplica cambios de contenido a toda la serie. */
   updateSeries: (seriesId: string, patch: Partial<ClassEntry>) => void;
   /** Borra todas las clases de una serie. */
@@ -457,6 +468,49 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           placed.push({ day, start, entry: { ...entry, seriesId } });
         }
         if (placed.length) dispatch({ type: 'ADD_CLASSES', payload: { entries: placed } });
+        return { created: placed.length, skipped };
+      },
+
+      makeSeriesFromClass: (day, start, recurrence) => {
+        const slots = data.days[day];
+        const entry = slots?.[String(start)];
+        if (!entry) return { created: 0, skipped: 0 };
+        // Si ya pertenece a una serie no se re-serializa (la UI no ofrece la opción en ese caso).
+        const seriesId = entry.seriesId ?? newId();
+        const dur = classDuration(entry);
+        // Cada repetición copia lo MISMO que una recurrente creada desde cero: tipo, alumnos,
+        // precios por alumno, duración, estado y contenido. NO copia los adjuntos ni el
+        // recordatorio (son propios de esa fecha/sesión) y arranca sin pagos (plata independiente).
+        const repeated: ClassEntry = {
+          type: entry.type,
+          participants: entry.participants,
+          price: entry.price,
+          duration: entry.duration,
+          state: entry.state,
+          content: entry.content,
+          seriesId,
+        };
+        // Mismas fechas que al crear desde cero: seriesDayKeys incluye el día original primero.
+        const keys = seriesDayKeys(day, recurrence);
+        const placed: PlacedClass[] = [];
+        let skipped = 0;
+        for (const k of keys) {
+          if (k === day) continue; // el turno original ya existe: será la primera clase de la serie
+          // No se crean repeticiones que se pisen con turnos existentes: esas se OMITEN (nunca se pisa).
+          if (findOverlapStart(data.days[k], start, dur) != null) {
+            skipped += 1;
+            continue;
+          }
+          placed.push({ day: k, start, entry: repeated });
+        }
+        // Si no se pudo crear ninguna repetición, no se arma la serie (no tendría sentido).
+        if (placed.length === 0) return { created: 0, skipped };
+        capture('Turno convertido en serie');
+        // 1) El turno original pasa a ser la primera clase de la serie: conserva TODO lo suyo
+        //    (incluidos recordatorio, adjuntos y sus pagos) y solo gana el seriesId.
+        dispatch({ type: 'UPSERT_CLASS', payload: { day, start, entry: { ...entry, seriesId } } });
+        // 2) Se agregan las repeticiones (ADD_CLASSES no pisa lo existente: doble red de seguridad).
+        dispatch({ type: 'ADD_CLASSES', payload: { entries: placed } });
         return { created: placed.length, skipped };
       },
 

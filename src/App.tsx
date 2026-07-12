@@ -26,6 +26,7 @@ import Skeletons from './components/Skeletons';
 import SyncCheck from './components/SyncCheck';
 import Spinner from './components/Spinner';
 import ReminderEditModal from './components/ReminderEditModal';
+import RepeatClassModal from './components/RepeatClassModal';
 import RemindersPanel from './components/RemindersPanel';
 import FabMenu from './components/FabMenu';
 import Confetti from './components/Confetti';
@@ -40,6 +41,8 @@ function AppShell() {
   const { due, upcoming, dueCount } = useReminders();
   const [view, setView] = useState<ViewMode>('anual');
   const [reminderTarget, setReminderTarget] = useState<{ day: string; start: number } | null>(null);
+  // Turno a convertir en serie recurrente (desde la agenda del día o la edición).
+  const [repeatTarget, setRepeatTarget] = useState<{ day: string; start: number } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [newStudentOpen, setNewStudentOpen] = useState(false);
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -115,6 +118,7 @@ function AppShell() {
           onMoveClass={(start) => setMoveTarget({ day: openDay, start })}
           onDuplicateClass={(start) => setDuplicateTarget({ day: openDay, start })}
           onReminder={(start) => setReminderTarget({ day: openDay, start })}
+          onRepeat={(start) => setRepeatTarget({ day: openDay, start })}
           onBlockDay={() => setBlockDayKey(openDay)}
         />
       )}
@@ -124,6 +128,13 @@ function AppShell() {
           target={formTarget}
           onClose={() => setFormTarget(null)}
           onReminder={() => setReminderTarget({ day: formTarget.day, start: formTarget.start })}
+          onRepeat={() => {
+            // Se cierra el form antes de abrir "Repetir": así un guardado posterior del form
+            // (con su copia vieja del turno, sin seriesId) no puede desvincular la serie recién
+            // creada. "Repetir" opera sobre el turno tal como está guardado.
+            setRepeatTarget({ day: formTarget.day, start: formTarget.start });
+            setFormTarget(null);
+          }}
         />
       )}
 
@@ -194,6 +205,10 @@ function AppShell() {
           start={reminderTarget.start}
           onClose={() => setReminderTarget(null)}
         />
+      )}
+
+      {repeatTarget && (
+        <RepeatClassModal day={repeatTarget.day} start={repeatTarget.start} onClose={() => setRepeatTarget(null)} />
       )}
 
       {remindersOpen && (

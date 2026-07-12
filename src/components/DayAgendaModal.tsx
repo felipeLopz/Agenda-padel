@@ -29,6 +29,8 @@ interface DayAgendaModalProps {
   onMoveClass: (start: number) => void;
   onDuplicateClass: (start: number) => void;
   onReminder: (start: number) => void;
+  /** Convertir el turno en una serie recurrente (solo turnos que aún no son serie). */
+  onRepeat: (start: number) => void;
   onBlockDay: () => void;
 }
 
@@ -42,6 +44,7 @@ export default function DayAgendaModal({
   onMoveClass,
   onDuplicateClass,
   onReminder,
+  onRepeat,
   onBlockDay,
 }: DayAgendaModalProps) {
   const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant } = useAgenda();
@@ -137,6 +140,16 @@ export default function DayAgendaModal({
             >
               ⧉
             </button>
+            {!entry.seriesId && (
+              <button
+                className="icon-btn has-tip"
+                onClick={() => onRepeat(start)}
+                aria-label="Repetir"
+                data-tip="Repetir"
+              >
+                🔁
+              </button>
+            )}
             <button className="icon-btn has-tip" onClick={() => onEditClass(start, entry)} aria-label="Editar" data-tip="Editar">
               ✎
             </button>

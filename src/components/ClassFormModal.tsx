@@ -14,28 +14,23 @@ import StudentPicker from './StudentPicker';
 import DiscountEditor from './DiscountEditor';
 import AttachmentsEditor from './AttachmentsEditor';
 import NumberInput from './NumberInput';
+import RecurrenceFields from './RecurrenceFields';
 
 interface ClassFormModalProps {
   target: ClassFormTarget;
   onClose: () => void;
   /** Abre el editor de recordatorio de este turno (solo tiene sentido al editar). */
   onReminder: () => void;
+  /** Abre "Repetir turno" para convertir esta clase existente en una serie (solo al editar). */
+  onRepeat: () => void;
 }
 
 function emptyParticipant(): ClassParticipant {
   return { studentId: null, name: '' };
 }
 
-/** Fecha ISO "YYYY-MM-DD" a N semanas de un dayKey. */
-function isoWeeksAhead(startDay: string, weeks: number): string {
-  const d = parseDayKey(startDay);
-  d.setDate(d.getDate() + weeks * 7);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 /** Alta y edición de una clase, con duración, estado y recurrencia. */
-export default function ClassFormModal({ target, onClose, onReminder }: ClassFormModalProps) {
+export default function ClassFormModal({ target, onClose, onReminder, onRepeat }: ClassFormModalProps) {
   const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
   // `initialStart` es la franja actual de la clase (su clave); `start` es la elegida en el form.
   const { day, start: initialStart, entry } = target;
@@ -58,12 +53,10 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
   // Aplicar la edición a toda la serie (solo si la clase pertenece a una).
   const [applyToSeries, setApplyToSeries] = useState(false);
 
-  // Recurrencia (solo al crear).
+  // Recurrencia (solo al crear). Los campos viven en <RecurrenceFields>, que emite el
+  // RecurrenceInput ya armado (misma UI/lógica que al convertir un turno en serie).
   const [repeat, setRepeat] = useState(false);
-  const [everyWeeks, setEveryWeeks] = useState(1);
-  const [endType, setEndType] = useState<'count' | 'date'>('count');
-  const [count, setCount] = useState(4);
-  const [endDate, setEndDate] = useState(() => isoWeeksAhead(day, 4));
+  const [recurrence, setRecurrence] = useState<RecurrenceInput>({ everyWeeks: 1, end: { type: 'count', count: 4 } });
 
   // El importe individual se autosugiere (si no lo tocaste). En grupal el total sale de
   // la SUMA de los precios por alumno (v8), así que no hay un total a autocalcular acá.
@@ -182,10 +175,6 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
     }
 
     if (!entry && repeat) {
-      const recurrence: RecurrenceInput = {
-        everyWeeks: Math.max(1, everyWeeks),
-        end: endType === 'count' ? { type: 'count', count } : { type: 'date', date: endDate },
-      };
       const res = createSeries(day, start, finalEntry, recurrence);
       let msg = `Se crearon ${res.created} clases de la serie.`;
       if (res.skipped > 0) msg += ` Se omitieron ${res.skipped} (se solapaban con otra clase de ese día).`;
@@ -390,33 +379,14 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
           <AttachmentsEditor attachments={attachments} onChange={setAttachments} />
         </div>
 
-        {/* Recurrencia (solo al crear). */}
+        {/* Recurrencia (solo al crear). Misma UI que al convertir un turno en serie. */}
         {!entry && (
           <div className="class-form__row">
             <label className="checkbox-row">
               <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
               Repetir esta clase
             </label>
-            {repeat && (
-              <div className="recurrence">
-                <div className="recurrence__row">
-                  <span>Cada</span>
-                  <NumberInput min={1} value={everyWeeks} onChange={setEveryWeeks} />
-                  <span>semana(s)</span>
-                </div>
-                <div className="recurrence__row">
-                  <select className="select" value={endType} onChange={(e) => setEndType(e.target.value as 'count' | 'date')}>
-                    <option value="count">Cantidad de clases</option>
-                    <option value="date">Hasta una fecha</option>
-                  </select>
-                  {endType === 'count' ? (
-                    <NumberInput min={1} value={count} onChange={setCount} />
-                  ) : (
-                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                  )}
-                </div>
-              </div>
-            )}
+            {repeat && <RecurrenceFields startDay={day} onChange={setRecurrence} />}
           </div>
         )}
 
@@ -436,10 +406,16 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
         )}
 
         {entry && (
-          <div className="class-form__row">
+          <div className="class-form__row class-form__row--buttons">
             <button type="button" className="btn btn--ghost" onClick={onReminder}>
               🔔 {entry.reminder ? 'Editar recordatorio' : 'Agregar recordatorio'}
             </button>
+            {/* Convertir este turno en serie recurrente. Solo si todavía no es parte de una. */}
+            {!entry.seriesId && (
+              <button type="button" className="btn btn--ghost" onClick={onRepeat}>
+                🔁 Repetir este turno
+              </button>
+            )}
           </div>
         )}
 
