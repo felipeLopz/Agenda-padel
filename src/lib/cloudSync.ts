@@ -62,7 +62,7 @@ export async function pullRemote(userId: string): Promise<RemoteSnapshot | null>
     .maybeSingle();
   if (error) throw error; // p. ej. sin conexión: lo maneja quien llama
   if (!data) return null;
-  // Se normaliza a v6 por las dudas (por si viniera un bloque de formato viejo).
+  // Se normaliza por las dudas (por si viniera un bloque de formato viejo, se migra a v10).
   return { data: normalizeData(data.data), updatedAt: data.updated_at as string };
 }
 

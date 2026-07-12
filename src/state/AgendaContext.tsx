@@ -24,9 +24,11 @@ import type {
 } from '../types';
 import { agendaReducer, type PlacedClass } from './agendaReducer';
 import { exportToFile, importFromFile, loadData, saveData } from '../lib/storage';
-import { computeLedger, dayKeyToISO, type Ledger } from '../lib/money';
+import { classKey, computeLedger, dayKeyToISO, type Ledger } from '../lib/money';
 import { newId } from '../lib/id';
 import { addDays, dayKey } from '../lib/date';
+import { classDuration } from '../lib/classMeta';
+import { findOverlapStart } from '../lib/time';
 import { seriesDayKeys, type RecurrenceInput } from '../lib/recurrence';
 import { useAuth } from './AuthContext';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -49,8 +51,8 @@ export interface NewPaymentInput {
   date: string; // "YYYY-MM-DD"
   concept?: string;
   kind?: Payment['kind'];
-  /** Si el pago salda una clase puntual (pago parcial atado a esa clase). */
-  classRef?: { day: string; hour: number };
+  /** Si el pago salda una clase puntual (pago parcial atado a esa clase, por inicio en minutos). */
+  classRef?: { day: string; start: number };
 }
 
 interface AgendaContextValue {
@@ -58,21 +60,28 @@ interface AgendaContextValue {
   /** Estado financiero derivado (recalculado ante cada cambio). */
   ledger: Ledger;
   setPrices: (prices: Prices) => void;
-  upsertClass: (day: string, hour: number, entry: ClassEntry) => void;
-  deleteClass: (day: string, hour: number) => void;
+  /** Crea/actualiza una clase en su franja (inicio en minutos), sin moverla. */
+  upsertClass: (day: string, start: number, entry: ClassEntry) => void;
+  /**
+   * Reubica una clase a otro inicio dentro del mismo día (al cambiar la hora al editar) y
+   * aplica los cambios del entry, re-apuntando sus pagos (no se pierde la plata). Si el
+   * inicio no cambió, equivale a un upsert.
+   */
+  relocateClass: (day: string, fromStart: number, toStart: number, entry: ClassEntry) => void;
+  deleteClass: (day: string, start: number) => void;
   /** Saca un alumno puntual de una clase (recalcula el total; si queda vacía, libera el turno). */
-  removeParticipant: (day: string, hour: number, index: number) => void;
+  removeParticipant: (day: string, start: number, index: number) => void;
   /** Pone/edita/borra el recordatorio de un turno (null = borrar). */
-  setReminder: (day: string, hour: number, reminder: Reminder | null) => void;
+  setReminder: (day: string, start: number, reminder: Reminder | null) => void;
   upsertStudent: (student: Student) => void;
   setStudentActive: (id: string, active: boolean) => void;
   /** Registra un pago y devuelve el registro creado (para el recibo). */
   addPayment: (input: NewPaymentInput) => Payment;
   deletePayment: (id: string) => void;
   /** Cobro rápido de una clase: salda el resto de cada alumno con el medio por defecto (hoy). */
-  quickCollectClass: (day: string, hour: number) => void;
+  quickCollectClass: (day: string, start: number) => void;
   /** Deshace el cobro rápido de una clase (borra sus pagos). */
-  undoCollectClass: (day: string, hour: number) => void;
+  undoCollectClass: (day: string, start: number) => void;
   /** Crea un pack (bono prepago) + su pago de compra. */
   addPack: (input: { studentId: string; totalClasses: number; price: number; date: string; methodId: string }) => void;
   deletePack: (id: string) => void;
@@ -84,7 +93,7 @@ interface AgendaContextValue {
   /** Crea una serie recurrente a partir de una clase. Devuelve cuántas creó/omitió. */
   createSeries: (
     startDay: string,
-    hour: number,
+    start: number,
     entry: ClassEntry,
     recurrence: RecurrenceInput
   ) => { created: number; skipped: number };
@@ -92,8 +101,8 @@ interface AgendaContextValue {
   updateSeries: (seriesId: string, patch: Partial<ClassEntry>) => void;
   /** Borra todas las clases de una serie. */
   deleteSeries: (seriesId: string) => void;
-  /** Mueve una clase a otra franja. Devuelve false si el destino ya está ocupado. */
-  moveClass: (from: { day: string; hour: number }, to: { day: string; hour: number }) => boolean;
+  /** Mueve una clase a otra franja. Devuelve false si el destino se solapa con otra clase. */
+  moveClass: (from: { day: string; start: number }, to: { day: string; start: number }) => boolean;
   /** Define/actualiza el bloqueo de un día. */
   setDayBlock: (day: string, block: DayBlock) => void;
   removeDayBlock: (day: string) => void;
@@ -102,8 +111,8 @@ interface AgendaContextValue {
   // --- Calidad de vida (v6) ---
   /** Cambia el tema visual (oscuro/claro) y lo recuerda. */
   setTheme: (theme: 'dark' | 'light') => void;
-  /** Duplica una clase a otra franja. Devuelve false si el destino ya está ocupado. */
-  duplicateClass: (from: { day: string; hour: number }, to: { day: string; hour: number }) => boolean;
+  /** Duplica una clase a otra franja. Devuelve false si el destino se solapa con otra clase. */
+  duplicateClass: (from: { day: string; start: number }, to: { day: string; start: number }) => boolean;
   /** Info del último "deshacer" disponible (o null). */
   undoInfo: { label: string; at: number } | null;
   /** Deshace la última acción importante. */
@@ -328,19 +337,21 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       initialLoading,
       syncedAt,
       setPrices: (prices) => dispatch({ type: 'SET_PRICES', payload: prices }),
-      upsertClass: (day, hour, entry) => dispatch({ type: 'UPSERT_CLASS', payload: { day, hour, entry } }),
-      deleteClass: (day, hour) => {
+      upsertClass: (day, start, entry) => dispatch({ type: 'UPSERT_CLASS', payload: { day, start, entry } }),
+      relocateClass: (day, fromStart, toStart, entry) =>
+        dispatch({ type: 'RELOCATE_CLASS', payload: { day, fromStart, toStart, entry } }),
+      deleteClass: (day, start) => {
         capture('Clase borrada');
         haptic();
-        dispatch({ type: 'DELETE_CLASS', payload: { day, hour } });
+        dispatch({ type: 'DELETE_CLASS', payload: { day, start } });
       },
-      removeParticipant: (day, hour, index) => {
+      removeParticipant: (day, start, index) => {
         capture('Alumno quitado del turno');
         haptic();
-        dispatch({ type: 'REMOVE_PARTICIPANT', payload: { day, hour, index } });
+        dispatch({ type: 'REMOVE_PARTICIPANT', payload: { day, start, index } });
       },
-      setReminder: (day, hour, reminder) =>
-        dispatch({ type: 'SET_REMINDER', payload: { day, hour, reminder } }),
+      setReminder: (day, start, reminder) =>
+        dispatch({ type: 'SET_REMINDER', payload: { day, start, reminder } }),
       upsertStudent: (student) => dispatch({ type: 'UPSERT_STUDENT', payload: student }),
       setStudentActive: (id, active) => {
         capture(active ? 'Alumno reactivado' : 'Alumno archivado');
@@ -352,12 +363,12 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'DELETE_PAYMENT', payload: { id } });
       },
 
-      quickCollectClass: (day, hour) => {
+      quickCollectClass: (day, start) => {
         // Salda, para cada alumno con ficha de la clase, lo que le queda adeudado.
-        const acc = ledger.byClass[`${day}|${hour}`];
+        const acc = ledger.byClass[classKey(day, start)];
         if (!acc) return;
         const slots = data.days[day];
-        const entry = slots?.[String(hour)];
+        const entry = slots?.[String(start)];
         if (!entry) return;
         const method = data.settings.defaultMethodId;
         const date = todayISO();
@@ -365,7 +376,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         for (const p of entry.participants) {
           if (!p.studentId) continue;
           const part = ledger.byStudent[p.studentId]?.participations.find(
-            (pp) => pp.day === day && pp.hour === hour
+            (pp) => pp.day === day && pp.start === start
           );
           if (!part) continue;
           const remaining = part.owed - part.paidToward;
@@ -380,7 +391,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
               date,
               concept: 'Cobro de clase',
               kind: 'clase',
-              classRef: { day, hour },
+              classRef: { day, start },
             },
           });
           didCollect = true;
@@ -392,7 +403,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      undoCollectClass: (day, hour) => dispatch({ type: 'DELETE_PAYMENTS_BY_CLASS', payload: { day, hour } }),
+      undoCollectClass: (day, start) => dispatch({ type: 'DELETE_PAYMENTS_BY_CLASS', payload: { day, start } }),
 
       addPack: (input) => {
         const packId = newId();
@@ -430,17 +441,20 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       setPaymentMethods: (methods) => dispatch({ type: 'SET_PAYMENT_METHODS', payload: methods }),
       setSettings: (settings) => dispatch({ type: 'SET_SETTINGS', payload: settings }),
 
-      createSeries: (startDay, hour, entry, recurrence) => {
+      createSeries: (startDay, start, entry, recurrence) => {
         const seriesId = newId();
         const keys = seriesDayKeys(startDay, recurrence);
+        const dur = classDuration(entry);
         const placed: PlacedClass[] = [];
         let skipped = 0;
         for (const day of keys) {
-          if (data.days[day]?.[String(hour)]) {
-            skipped += 1; // ya hay clase en esa franja
+          // Se omite la ocurrencia si su rango [inicio, inicio+duración) se pisa con
+          // alguna clase ya existente ese día (nunca se pisan clases).
+          if (findOverlapStart(data.days[day], start, dur) != null) {
+            skipped += 1;
             continue;
           }
-          placed.push({ day, hour, entry: { ...entry, seriesId } });
+          placed.push({ day, start, entry: { ...entry, seriesId } });
         }
         if (placed.length) dispatch({ type: 'ADD_CLASSES', payload: { entries: placed } });
         return { created: placed.length, skipped };
@@ -453,8 +467,13 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
 
       moveClass: (from, to) => {
-        if (from.day === to.day && from.hour === to.hour) return true;
-        if (data.days[to.day]?.[String(to.hour)]) return false; // destino ocupado
+        if (from.day === to.day && from.start === to.start) return true;
+        const entry = data.days[from.day]?.[String(from.start)];
+        if (!entry) return false;
+        // No se permite mover a un rango que se solape con otra clase (se excluye la propia
+        // franja si el destino es el mismo día). Devuelve false para que el llamador avise.
+        const excludeStart = from.day === to.day ? from.start : undefined;
+        if (findOverlapStart(data.days[to.day], to.start, classDuration(entry), excludeStart) != null) return false;
         capture('Clase movida');
         dispatch({ type: 'MOVE_CLASS', payload: { from, to } });
         return true;
@@ -471,8 +490,11 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           const dstDay = dayKey(addDays(toMonday, i));
           const slots = data.days[srcDay];
           if (!slots) continue;
-          for (const [hourStr, entry] of Object.entries(slots)) {
-            if (data.days[dstDay]?.[hourStr]) {
+          for (const [startStr, entry] of Object.entries(slots)) {
+            const start = Number(startStr);
+            // Se omite si el rango de la clase se pisa con alguna del día destino (las clases
+            // del día origen no se pisan entre sí, así que la copia tampoco lo hará).
+            if (findOverlapStart(data.days[dstDay], start, classDuration(entry)) != null) {
               skipped += 1;
               continue;
             }
@@ -480,7 +502,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
             // copian, así que la copia arranca impaga (no tiene pagos propios).
             placed.push({
               day: dstDay,
-              hour: Number(hourStr),
+              start,
               entry: {
                 type: entry.type,
                 participants: entry.participants,
@@ -499,9 +521,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       setTheme: (theme) => dispatch({ type: 'SET_SETTINGS', payload: { ...data.settings, theme } }),
 
       duplicateClass: (from, to) => {
-        const entry = data.days[from.day]?.[String(from.hour)];
+        const entry = data.days[from.day]?.[String(from.start)];
         if (!entry) return false;
-        if (data.days[to.day]?.[String(to.hour)]) return false; // destino ocupado
+        // La copia no puede solaparse con ninguna clase del día destino (incluida la original).
+        if (findOverlapStart(data.days[to.day], to.start, classDuration(entry)) != null) return false;
         capture('Clase duplicada');
         // Copia alumnos, precio, descuentos, duración y contenido; sin serie, estado
         // confirmada, sin adjuntos (son de esa sesión) y sin pagos propios.
@@ -511,7 +534,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
             entries: [
               {
                 day: to.day,
-                hour: to.hour,
+                start: to.start,
                 entry: {
                   type: entry.type,
                   participants: entry.participants,

@@ -34,7 +34,8 @@ export const STATUS_LABEL: Record<ClassStatus, string> = {
 
 export interface Participation {
   day: string;
-  hour: number;
+  /** Hora de inicio de la clase en minutos desde la medianoche (v10). */
+  start: number;
   entry: ClassEntry;
   studentId: string;
   /** Parte bruta = precio ÷ cantidad de participantes. */
@@ -85,9 +86,9 @@ export interface Ledger {
   totalOwed: number;
 }
 
-/** Clave de una clase en el ledger. */
-export function classKey(day: string, hour: number): string {
-  return `${day}|${hour}`;
+/** Clave de una clase en el ledger (día + inicio en minutos). */
+export function classKey(day: string, start: number): string {
+  return `${day}|${start}`;
 }
 
 /**
@@ -129,9 +130,9 @@ function isoToTime(iso: string): number {
   return new Date(y, (m || 1) - 1, d || 1).getTime();
 }
 
-/** Ordena por fecha de clase (día + hora). */
-function participationTime(day: string, hour: number): number {
-  return parseDayKey(day).getTime() + hour * 3600 * 1000;
+/** Ordena por fecha de clase (día + inicio en minutos). */
+function participationTime(day: string, start: number): number {
+  return parseDayKey(day).getTime() + start * 60 * 1000;
 }
 
 /**
@@ -143,16 +144,16 @@ export function computeLedger(data: AgendaData): Ledger {
   // 1) Juntar participaciones por alumno.
   const partsByStudent: Record<string, Participation[]> = {};
   for (const [day, slots] of Object.entries(data.days)) {
-    for (const [hourStr, entry] of Object.entries(slots)) {
+    for (const [startStr, entry] of Object.entries(slots)) {
       // Las clases canceladas no generan plata (ni deuda ni cobro).
       if (!isChargeable(entry)) continue;
-      const hour = Number(hourStr);
+      const start = Number(startStr);
       entry.participants.forEach((p, idx) => {
         if (!p.studentId || !data.students[p.studentId]) return;
         const { gross, net } = shareBreakdown(entry, idx, data.students[p.studentId]);
         (partsByStudent[p.studentId] ??= []).push({
           day,
-          hour,
+          start,
           entry,
           studentId: p.studentId,
           gross,
@@ -176,7 +177,7 @@ export function computeLedger(data: AgendaData): Ledger {
 
   for (const [studentId, parts] of Object.entries(partsByStudent)) {
     // Ordenar sus clases por fecha ascendente.
-    parts.sort((a, b) => participationTime(a.day, a.hour) - participationTime(b.day, b.hour));
+    parts.sort((a, b) => participationTime(a.day, a.start) - participationTime(b.day, b.start));
 
     // 2) Cobertura por packs (FIFO): packs del alumno por fecha de compra.
     const studentPacks = Object.values(data.packs)
@@ -210,7 +211,7 @@ export function computeLedger(data: AgendaData): Ledger {
     let freePool = 0;
     for (const pay of studentPays) {
       if (pay.classRef) {
-        const k = classKey(pay.classRef.day, pay.classRef.hour);
+        const k = classKey(pay.classRef.day, pay.classRef.start);
         tiedByKey[k] = (tiedByKey[k] ?? 0) + pay.amount;
       } else {
         freePool += pay.amount;
@@ -220,7 +221,7 @@ export function computeLedger(data: AgendaData): Ledger {
     // 3a) Pagos atados a su clase (el sobrante vuelve al pool libre).
     for (const part of parts) {
       if (part.coveredByPack) continue;
-      const k = classKey(part.day, part.hour);
+      const k = classKey(part.day, part.start);
       const tied = tiedByKey[k];
       if (!tied) continue;
       const applied = Math.min(part.owed, tied);
@@ -275,13 +276,13 @@ export function computeLedger(data: AgendaData): Ledger {
   // 5) Agregado por clase (para colorear y para los totales por período).
   const byClass: Record<string, ClassAccount> = {};
   for (const [day, slots] of Object.entries(data.days)) {
-    for (const [hourStr, entry] of Object.entries(slots)) {
-      const hour = Number(hourStr);
-      const key = classKey(day, hour);
+    for (const [startStr, entry] of Object.entries(slots)) {
+      const start = Number(startStr);
+      const key = classKey(day, start);
       const parts: Participation[] = [];
       for (const acc of Object.values(byStudent)) {
         for (const p of acc.participations) {
-          if (p.day === day && p.hour === hour) parts.push(p);
+          if (p.day === day && p.start === start) parts.push(p);
         }
       }
       let collected = 0;
@@ -316,8 +317,8 @@ export function computeLedger(data: AgendaData): Ledger {
 }
 
 /** Estado de una clase desde el ledger (o "sin-seguimiento" si no está). */
-export function classStatus(ledger: Ledger, day: string, hour: number): ClassStatus {
-  return ledger.byClass[classKey(day, hour)]?.status ?? 'sin-seguimiento';
+export function classStatus(ledger: Ledger, day: string, start: number): ClassStatus {
+  return ledger.byClass[classKey(day, start)]?.status ?? 'sin-seguimiento';
 }
 
 // ---------------------------------------------------------------------------
@@ -336,24 +337,24 @@ export function emptyTotals(): Totals {
   return { classes: 0, students: 0, collected: 0, pending: 0, total: 0 };
 }
 
-/** Franjas ocupadas de un día, ordenadas por hora ascendente. */
+/** Clases de un día, ordenadas por hora de inicio (en minutos) ascendente. */
 export function dayEntries(
   slots: Record<string, ClassEntry> | undefined
-): Array<{ hour: number; entry: ClassEntry }> {
+): Array<{ start: number; entry: ClassEntry }> {
   if (!slots) return [];
   return Object.entries(slots)
-    .map(([hour, entry]) => ({ hour: Number(hour), entry }))
-    .sort((a, b) => a.hour - b.hour);
+    .map(([start, entry]) => ({ start: Number(start), entry }))
+    .sort((a, b) => a.start - b.start);
 }
 
 function accumulate(data: AgendaData, ledger: Ledger, matches: (day: string) => boolean): Totals {
   const t = emptyTotals();
   for (const [day, slots] of Object.entries(data.days)) {
     if (!matches(day)) continue;
-    for (const [hourStr, entry] of Object.entries(slots)) {
+    for (const [startStr, entry] of Object.entries(slots)) {
       // Las clases canceladas no cuentan en los totales.
       if (!isChargeable(entry)) continue;
-      const acc = ledger.byClass[classKey(day, Number(hourStr))];
+      const acc = ledger.byClass[classKey(day, Number(startStr))];
       t.classes += 1;
       t.students += entry.participants.length;
       t.total += entry.price;

@@ -39,7 +39,7 @@ function AppShell() {
   const { initialLoading, data } = useAgenda();
   const { due, upcoming, dueCount } = useReminders();
   const [view, setView] = useState<ViewMode>('anual');
-  const [reminderTarget, setReminderTarget] = useState<{ day: string; hour: number } | null>(null);
+  const [reminderTarget, setReminderTarget] = useState<{ day: string; start: number } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [newStudentOpen, setNewStudentOpen] = useState(false);
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -50,20 +50,20 @@ function AppShell() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [editStudent, setEditStudent] = useState<Student | null>(null);
-  // Pago abierto desde la agenda del día (atado a una clase).
-  const [payTarget, setPayTarget] = useState<{ studentId: string; classRef: { day: string; hour: number } } | null>(
+  // Pago abierto desde la agenda del día (atado a una clase, por inicio en minutos).
+  const [payTarget, setPayTarget] = useState<{ studentId: string; classRef: { day: string; start: number } } | null>(
     null
   );
-  const [moveTarget, setMoveTarget] = useState<{ day: string; hour: number } | null>(null);
-  const [duplicateTarget, setDuplicateTarget] = useState<{ day: string; hour: number } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ day: string; start: number } | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<{ day: string; start: number } | null>(null);
   const [copyWeekMonday, setCopyWeekMonday] = useState<Date | null>(null);
   const [blockDayKey, setBlockDayKey] = useState<string | null>(null);
 
-  function openNewClass(day: string, hour: number) {
-    setFormTarget({ day, hour, entry: null });
+  function openNewClass(day: string, start: number) {
+    setFormTarget({ day, start, entry: null });
   }
-  function openEditClass(day: string, hour: number, entry: ClassEntry) {
-    setFormTarget({ day, hour, entry });
+  function openEditClass(day: string, start: number, entry: ClassEntry) {
+    setFormTarget({ day, start, entry });
   }
 
   return (
@@ -109,12 +109,12 @@ function AppShell() {
         <DayAgendaModal
           day={openDay}
           onClose={() => setOpenDay(null)}
-          onNewClass={(hour) => openNewClass(openDay, hour)}
-          onEditClass={(hour, entry) => openEditClass(openDay, hour, entry)}
+          onNewClass={(start) => openNewClass(openDay, start)}
+          onEditClass={(start, entry) => openEditClass(openDay, start, entry)}
           onRegisterPayment={(studentId, classRef) => setPayTarget({ studentId, classRef })}
-          onMoveClass={(hour) => setMoveTarget({ day: openDay, hour })}
-          onDuplicateClass={(hour) => setDuplicateTarget({ day: openDay, hour })}
-          onReminder={(hour) => setReminderTarget({ day: openDay, hour })}
+          onMoveClass={(start) => setMoveTarget({ day: openDay, start })}
+          onDuplicateClass={(start) => setDuplicateTarget({ day: openDay, start })}
+          onReminder={(start) => setReminderTarget({ day: openDay, start })}
           onBlockDay={() => setBlockDayKey(openDay)}
         />
       )}
@@ -123,7 +123,7 @@ function AppShell() {
         <ClassFormModal
           target={formTarget}
           onClose={() => setFormTarget(null)}
-          onReminder={() => setReminderTarget({ day: formTarget.day, hour: formTarget.hour })}
+          onReminder={() => setReminderTarget({ day: formTarget.day, start: formTarget.start })}
         />
       )}
 
@@ -191,7 +191,7 @@ function AppShell() {
       {reminderTarget && (
         <ReminderEditModal
           day={reminderTarget.day}
-          hour={reminderTarget.hour}
+          start={reminderTarget.start}
           onClose={() => setReminderTarget(null)}
         />
       )}

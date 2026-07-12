@@ -5,6 +5,7 @@ import { formatCurrency } from '../lib/format';
 import { monthTotals, dayTotals, dayEntries, classStatus, STATUS_LABEL } from '../lib/money';
 import { classNames } from '../lib/students';
 import { isDayBlocked } from '../lib/classMeta';
+import { minutesToLabel } from '../lib/time';
 import { holidayName } from '../lib/holidays';
 
 interface MonthColumnProps {
@@ -49,14 +50,14 @@ export default function MonthColumn({ year, month, name, onOpenDay }: MonthColum
               </span>
               <span className="day-row__dow">{WEEKDAY_NAMES[date.getDay()]}</span>
               <span className="day-row__bars">
-                {entries.map(({ hour, entry }) => {
-                  const status = classStatus(ledger, key, hour);
+                {entries.map(({ start, entry }) => {
+                  const status = classStatus(ledger, key, start);
                   return (
                     <span
-                      key={hour}
+                      key={start}
                       className={`day-bar day-bar--${entry.type} day-bar--${status}`}
                       style={{ flexGrow: entry.participants.length }}
-                      title={`${hour}h · ${
+                      title={`${minutesToLabel(start)} · ${
                         classNames(entry, data.students).join(', ') || entry.participants.length + ' alumno(s)'
                       } · ${formatCurrency(entry.price)} · ${STATUS_LABEL[status]}`}
                     />

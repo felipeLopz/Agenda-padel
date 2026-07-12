@@ -2,6 +2,8 @@ import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { addDays, dayKey, startOfWeek } from '../lib/date';
+import { classDuration } from '../lib/classMeta';
+import { findOverlapStart } from '../lib/time';
 
 interface CopyWeekModalProps {
   /** Lunes de la semana de origen (la que se está viendo). */
@@ -28,15 +30,16 @@ export default function CopyWeekModal({ fromMonday, onClose }: CopyWeekModalProp
 
   const toMonday = startOfWeek(isoToDate(targetISO));
 
-  // Contar clases a copiar y conflictos en el destino.
+  // Contar clases a copiar y conflictos (solapamiento por rango) en el destino.
   let toCopy = 0;
   let conflicts = 0;
   for (let i = 0; i < 7; i++) {
     const src = data.days[dayKey(addDays(fromMonday, i))];
     if (!src) continue;
-    for (const hour of Object.keys(src)) {
+    const dst = data.days[dayKey(addDays(toMonday, i))];
+    for (const [startStr, entry] of Object.entries(src)) {
       toCopy += 1;
-      if (data.days[dayKey(addDays(toMonday, i))]?.[hour]) conflicts += 1;
+      if (findOverlapStart(dst, Number(startStr), classDuration(entry)) != null) conflicts += 1;
     }
   }
 

@@ -6,7 +6,8 @@ import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS, COMMON_TOPICS } from '../lib/cons
 import { suggestedPrice } from '../lib/pricing';
 import { participantName } from '../lib/students';
 import { formatCurrency } from '../lib/format';
-import { classDuration, classState, findOverlapFor, STATE_LABEL, STATES, timeRange } from '../lib/classMeta';
+import { classDuration, classState, STATE_LABEL, STATES } from '../lib/classMeta';
+import { findOverlapStart, hhmmToMinutes, minutesToHHMM, minutesToLabel, nextFreeStart } from '../lib/time';
 import type { RecurrenceInput } from '../lib/recurrence';
 import type { Attachment, ClassEntry, ClassFormTarget, ClassParticipant, ClassState, ClassType } from '../types';
 import StudentPicker from './StudentPicker';
@@ -35,9 +36,11 @@ function isoWeeksAhead(startDay: string, weeks: number): string {
 
 /** Alta y edición de una clase, con duración, estado y recurrencia. */
 export default function ClassFormModal({ target, onClose, onReminder }: ClassFormModalProps) {
-  const { data, upsertClass, deleteClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
-  const { day, hour, entry } = target;
+  const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
+  // `initialStart` es la franja actual de la clase (su clave); `start` es la elegida en el form.
+  const { day, start: initialStart, entry } = target;
 
+  const [start, setStart] = useState<number>(initialStart);
   const [type, setType] = useState<ClassType>(entry?.type ?? 'grupal');
   const [participants, setParticipants] = useState<ClassParticipant[]>(
     entry?.participants.length ? entry.participants : [emptyParticipant()]
@@ -87,7 +90,7 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
       // Quedó sin nadie: si es una clase existente, se borra el turno (deshacible) y se
       // cierra; si es una clase nueva, se deja una fila en blanco para cargar a alguien.
       if (entry) {
-        deleteClass(day, hour);
+        deleteClass(day, initialStart);
         onClose();
         return;
       }
@@ -113,7 +116,7 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
     if (valid.length === 0) {
       // Clase existente que quedó sin alumnos → se borra el turno (deshacible), sin trabar.
       if (entry) {
-        deleteClass(day, hour);
+        deleteClass(day, initialStart);
         onClose();
         return;
       }
@@ -121,17 +124,25 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
       return;
     }
 
-    // Aviso blando de solapamiento: si la clase (por su duración) se pisa con otra
-    // del mismo día, avisamos pero dejamos guardar igual. Las canceladas no cuentan.
+    // Solapamiento DURO: si la clase (por su duración) se pisa con otra del mismo día, NO
+    // se permite guardar. Se sugiere el próximo horario libre. Las canceladas no ocupan
+    // horario, así que no chequean. Al editar, se excluye su propia franja actual.
     if (state !== 'cancelada') {
-      const conflictHour = findOverlapFor(data.days[day], hour, duration);
-      if (conflictHour != null) {
-        const other = data.days[day]?.[String(conflictHour)];
-        const otherRange = other ? timeRange(conflictHour, other) : `${conflictHour}:00`;
-        const ok = confirm(
-          `⚠ Esta clase se solapa en el horario con la de las ${otherRange}. ¿Guardar igual?`
+      const excludeStart = entry ? initialStart : undefined;
+      const conflictStart = findOverlapStart(data.days[day], start, duration, excludeStart);
+      if (conflictStart != null) {
+        const other = data.days[day]?.[String(conflictStart)];
+        const otherRange = other
+          ? `${minutesToLabel(conflictStart)}–${minutesToLabel(conflictStart + classDuration(other))}`
+          : minutesToLabel(conflictStart);
+        const suggestion = nextFreeStart(data.days[day], start, duration, excludeStart);
+        alert(
+          `No se puede: esta clase se solapa con la de las ${otherRange}.` +
+            (suggestion != null
+              ? ` Probá desde las ${minutesToLabel(suggestion)}.`
+              : ' No hay un hueco libre suficiente ese día.')
         );
-        if (!ok) return;
+        return;
       }
     }
     const finalList = (type === 'indiv' ? valid.slice(0, 1) : valid).map((p) => ({
@@ -157,7 +168,8 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
     };
 
     if (entry && entry.seriesId && applyToSeries) {
-      // Propagar contenido a toda la serie (cada clase conserva su día/hora).
+      // Propagar contenido a toda la serie (cada clase conserva su día y su hora de inicio;
+      // el cambio de hora de ESTA clase no se propaga a la serie, para no pisar horarios).
       updateSeries(entry.seriesId, {
         type,
         participants: finalList,
@@ -174,23 +186,29 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
         everyWeeks: Math.max(1, everyWeeks),
         end: endType === 'count' ? { type: 'count', count } : { type: 'date', date: endDate },
       };
-      const res = createSeries(day, hour, finalEntry, recurrence);
+      const res = createSeries(day, start, finalEntry, recurrence);
       let msg = `Se crearon ${res.created} clases de la serie.`;
-      if (res.skipped > 0) msg += ` Se omitieron ${res.skipped} (ya había clase en esa franja).`;
+      if (res.skipped > 0) msg += ` Se omitieron ${res.skipped} (se solapaban con otra clase de ese día).`;
       alert(msg);
       onClose();
       return;
     }
 
-    upsertClass(day, hour, finalEntry);
-    if (collectNow && !entry) setTimeout(() => quickCollectClass(day, hour), 0);
+    if (entry) {
+      // Editar: si cambió la hora, se reubica la clase re-apuntando sus pagos (no se pierde
+      // plata); si no cambió, es un simple upsert. `relocateClass` cubre ambos casos.
+      relocateClass(day, initialStart, start, finalEntry);
+    } else {
+      upsertClass(day, start, finalEntry);
+      if (collectNow) setTimeout(() => quickCollectClass(day, start), 0);
+    }
     onClose();
   }
 
   const date = parseDayKey(day);
   const title = `${entry ? 'Editar' : 'Nueva'} clase · ${WEEKDAY_NAMES_LONG[date.getDay()]} ${date.getDate()}/${
     date.getMonth() + 1
-  } · ${hour}:00`;
+  } · ${minutesToLabel(start)}`;
   const visible = type === 'indiv' ? participants.slice(0, 1) : participants;
   const chosenIds = participants.map((p) => p.studentId).filter((id): id is string => Boolean(id));
   // Total de la clase grupal = suma de los precios de los alumnos cargados.
@@ -266,23 +284,16 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
 
         <div className="class-form__row class-form__row--split">
           <div>
-            {type === 'indiv' ? (
-              <>
-                <label>Importe</label>
-                <NumberInput
-                  value={price}
-                  onChange={(n) => {
-                    setPriceTouched(true);
-                    setPrice(n);
-                  }}
-                />
-              </>
-            ) : (
-              <>
-                <label>Total de la clase (suma de los alumnos)</label>
-                <div className="class-form__total">{formatCurrency(grupalTotal)}</div>
-              </>
-            )}
+            <label>Hora de inicio</label>
+            <input
+              type="time"
+              step={900}
+              value={minutesToHHMM(start)}
+              onChange={(e) => {
+                const m = hhmmToMinutes(e.target.value);
+                if (m != null) setStart(m);
+              }}
+            />
           </div>
           <div>
             <label>Duración</label>
@@ -294,6 +305,26 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="class-form__row">
+          {type === 'indiv' ? (
+            <>
+              <label>Importe</label>
+              <NumberInput
+                value={price}
+                onChange={(n) => {
+                  setPriceTouched(true);
+                  setPrice(n);
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <label>Total de la clase (suma de los alumnos)</label>
+              <div className="class-form__total">{formatCurrency(grupalTotal)}</div>
+            </>
+          )}
         </div>
 
         <div className="class-form__row">
@@ -419,7 +450,7 @@ export default function ClassFormModal({ target, onClose, onReminder }: ClassFor
               className="btn btn--small day-slot__delete-btn class-form__delete"
               onClick={() => {
                 if (confirm('¿Borrar este turno entero? Podés deshacerlo con "Deshacer".')) {
-                  deleteClass(day, hour);
+                  deleteClass(day, initialStart);
                   onClose();
                 }
               }}

@@ -89,7 +89,8 @@ período (un mes o todo el año) y comparación con el período anterior:
   movibles de Pascua). Es solo una marca visual: se puede dar clase igual. No incluye los
   puentes turísticos ni los traslados por decreto.
 - **Duración variable**: 30/45/60/90/120 min (default 60). La agenda del día muestra el
-  rango horario ("10:00–11:30") y la vista semanal una barra proporcional a la duración.
+  rango horario ("10:00–11:30") y la **vista semanal** ubica cada clase como un bloque en su
+  horario exacto, con **altura proporcional a la duración** (ver "Agenda de tiempo real").
 - **Estados de clase**: confirmada, tentativa, cancelada o ausente, distinguidos
   visualmente. Una clase **cancelada no genera plata** (no cuenta deuda, cobro ni
   facturación); las demás cuentan como siempre.
@@ -211,11 +212,15 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
   los archivos viejos v1 del prototipo. Importar **reemplaza** todos los datos actuales
   del dispositivo — la app pide confirmación antes de hacerlo.
 
-### Formato del archivo (v6)
+### Formato del archivo (v10)
+
+> Desde v10 (agenda de tiempo real), la **clave de cada clase dentro del día** es la hora de
+> inicio **en minutos** desde la medianoche (9:00 = `"540"`, 9:30 = `"570"`), y los pagos
+> referencian la clase por `{ day, start }` (antes `{ day, hour }`). El resto es igual.
 
 ```jsonc
 {
-  "version": 6,
+  "version": 10,
   "prices": { "grupal": 4000, "indiv": 12000 },
   "students": {
     "<id>": {
@@ -245,7 +250,7 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
   },
   "days": {
     "2026-6-15": {                              // clave "AÑO-MES-DIA", mes desde 0
-      "8": {
+      "570": {                                  // clave = inicio en MINUTOS (570 = 9:30) — v10
         "type": "grupal",                       // grupal | indiv
         "participants": [
           { "studentId": "<id>", "name": "Ana Pérez",
@@ -274,7 +279,7 @@ No hace falta servidor con Node corriendo en producción: es solo HTML/CSS/JS.
       "amount": 4000, "methodId": "efectivo",
       "concept": "Cobro de clase",
       "kind": "clase",                          // clase | pack | ajuste
-      "classRef": { "day": "2026-6-15", "hour": 8 }, // opcional (cobro de una clase)
+      "classRef": { "day": "2026-6-15", "start": 570 }, // opcional (cobro de una clase; start en minutos)
       "packId": "<id>"                          // opcional (si es compra de pack)
     }
   },
@@ -307,7 +312,7 @@ El PIN/bloqueo **no** se implementó (se descartó); no hay datos de PIN en el f
 Las "clases restantes" de un pack, los feriados y el estado cobrado/pendiente de cada
 clase **no se guardan**: se derivan (ver `src/lib/money.ts` y `src/lib/holidays.ts`).
 
-### Compatibilidad con los formatos viejos (v1 → v2 → v3 → v4 → v5 → v6)
+### Compatibilidad con los formatos viejos (v1 → v2 → v3 → v4 → v5 → v6 → … → v10)
 
 Al **cargar** el localStorage o **importar** un archivo, la app migra en cadena y sin
 perder datos (`src/lib/migrate.ts`, idempotente):
@@ -330,6 +335,15 @@ perder datos (`src/lib/migrate.ts`, idempotente):
   viernes, 7–16), el tema (oscuro) y `lastExportAt`. No toca clases, alumnos ni plata: los
   datos v5 quedan **idénticos**. El cambio de la **ocupación** (ahora sobre días laborales)
   es intencional, no afecta totales ni la lógica de plata.
+- **v6 → v7/v8/v9** → categoría de pádel (1ra–8va) + nivel del alumno, precio propio por
+  alumno en grupal, y recordatorio por turno. Campos opcionales: los datos viejos quedan
+  **idénticos** (la plata no cambia).
+- **v9 → v10** (agenda de tiempo real) → la clave de cada clase pasa de la **hora entera**
+  (7..16) a los **minutos** de inicio (se multiplica por 60: 9 → 540), y los `classRef` de
+  los pagos de `{ day, hour }` a `{ day, start }`. La conversión corre **una sola vez**,
+  gateada por la versión del origen (no se re-multiplica al recargar). Los importes, pagos,
+  packs, estados y totales quedan **idénticos**: solo cambia cómo se ubica cada clase en el
+  tiempo. Idempotente y sin pérdida de datos.
 
 ## Decisiones tomadas
 
@@ -360,9 +374,14 @@ perder datos (`src/lib/migrate.ts`, idempotente):
   cuenta para el precio de la clase pero no genera deuda ni cobro.
 - **Los packs se consumen FIFO** (clase más vieja primero, desde la fecha de compra) y el
   monto se cobra al comprarlos (prepago); esas clases no se vuelven a cobrar.
-- **Modelo por franja horaria (v4)**: la agenda sigue siendo una clase por hora entera
-  (7–16). La duración es un dato de la clase que se refleja visualmente (rango horario +
-  barra proporcional), pero no convierte la grilla en una línea de tiempo libre.
+- **Agenda de tiempo real (v10)**: la clase deja de estar atada a la hora en punto. Empieza
+  a **cualquier horario** (9:30, 10:15, …) y ocupa su **rango real** [inicio, inicio+duración).
+  La clave de cada clase dentro del día pasó de la hora entera a los **minutos de inicio**
+  desde la medianoche (9:00 = "540"). La **vista semanal** es un calendario continuo (bloques
+  posicionados por hora, altura proporcional a la duración; tocar un hueco crea, arrastrar
+  reprograma). **No se permiten solapamientos**: al crear/mover/duplicar/copiar/repetir a un
+  rango ocupado se avisa y se propone el próximo horario libre. El horario y los días
+  laborales configurables se mantienen. Migración v9→v10 automática, sin perder nada.
 - **Las recurrencias se materializan**: generan clases reales con `seriesId` (no una regla
   que se evalúa después). Más simple y coherente con el modelo por franja.
 - **Cancelada = sin plata; tentativa/ausente = cuentan**: solo la clase cancelada se

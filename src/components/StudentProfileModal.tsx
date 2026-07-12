@@ -5,6 +5,7 @@ import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { WEEKDAY_NAMES } from '../lib/constants';
 import { displayName, CATEGORY_LABELS, RANK_LABELS, whatsappLink } from '../lib/students';
+import { minutesToLabel } from '../lib/time';
 import { describeDiscount } from '../lib/discount';
 import { STATUS_LABEL, studentPayments, studentPacks } from '../lib/money';
 import { downloadReceipt } from '../lib/receipt';
@@ -310,13 +311,13 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
               const date = parseDayKey(it.day);
               return (
                 <button
-                  key={`${it.day}-${it.hour}`}
+                  key={`${it.day}-${it.start}`}
                   className="search-result"
                   onClick={() => onOpenDay(it.day)}
                 >
                   <span>
                     {WEEKDAY_NAMES[date.getDay()]} {date.getDate()}/{date.getMonth() + 1}/{date.getFullYear()} ·{' '}
-                    {it.hour}:00
+                    {minutesToLabel(it.start)}
                   </span>
                   <span className={`badge badge--${it.entry.type}`}>
                     {it.entry.type === 'grupal' ? 'Grupal' : 'Individual'}

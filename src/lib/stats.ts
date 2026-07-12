@@ -87,15 +87,18 @@ export function computeStats(data: AgendaData, ledger: Ledger, period: Period): 
 
   for (const [day, slots] of Object.entries(data.days)) {
     if (!dayInPeriod(day, period)) continue;
-    for (const [hourStr, entry] of Object.entries(slots)) {
+    for (const [startStr, entry] of Object.entries(slots)) {
       if (!isChargeable(entry)) {
         cancelled += 1;
         continue;
       }
-      const hour = Number(hourStr);
+      const start = Number(startStr);
+      // La clave del ledger usa el inicio en minutos; el ranking por franja usa la HORA
+      // (bucket) en la que empieza la clase (9:30 → franja "9").
+      const hour = Math.floor(start / 60);
       byTypeCount[entry.type] += 1;
       byHourMap.set(hour, (byHourMap.get(hour) ?? 0) + 1);
-      const acc = ledger.byClass[classKey(day, hour)];
+      const acc = ledger.byClass[classKey(day, start)];
       if (acc) incomeByType[entry.type] += acc.collected;
       for (const p of entry.participants) {
         if (p.studentId) attendanceMap.set(p.studentId, (attendanceMap.get(p.studentId) ?? 0) + 1);

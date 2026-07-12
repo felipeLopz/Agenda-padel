@@ -12,8 +12,8 @@ interface PaymentFormModalProps {
   onClose: () => void;
   /** Monto sugerido (por defecto, el saldo del alumno). */
   defaultAmount?: number;
-  /** Si el pago salda una clase puntual. */
-  classRef?: { day: string; hour: number };
+  /** Si el pago salda una clase puntual (por inicio en minutos). */
+  classRef?: { day: string; start: number };
 }
 
 function todayISO(): string {

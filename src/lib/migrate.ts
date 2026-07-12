@@ -1,13 +1,21 @@
-// Migración de datos y normalización general (v1 → v2 → v3).
+// Migración de datos y normalización general (v1 → v2 → v3 → … → v10).
 //
 // v1 (prototipo): clases con `names: string[]`, sin alumnos.
 // v2 (Tanda 1): base `students` + clases con `participants` y `paid` por clase.
 // v3 (Tanda 2): + pagos, packs, gastos, medios de pago y descuentos; el estado
 //   cobrado/pendiente de la clase se DERIVA de los pagos, así que `paid` se elimina.
+// v10 (Agenda de tiempo real): la clave de cada clase dentro del día pasa de la HORA
+//   ENTERA (7..16) a los MINUTOS de inicio desde la medianoche (7 → 420, 9:30 → 570).
+//   Los pagos referencian la clase por `{ day, start }` (antes `{ day, hour }`).
 //
 // `normalizeData` (en storage.ts) corre al cargar el localStorage y al importar
 // cualquier JSON. La cadena es: normalizeToV2 (maneja v1/v2/v3) → migrateV2toV3.
-// Todo es idempotente y no descarta datos: los faltantes se completan por defecto.
+//
+// IMPORTANTE: casi todo es idempotente (los campos faltantes se completan por defecto),
+// PERO la conversión de horas→minutos NO lo es (multiplicar por 60 dos veces rompería
+// los horarios). Por eso se GATEA por la versión del origen: solo se multiplica cuando
+// `version < TIME_REAL_VERSION` (ver `usesLegacyHourKeys`). Los datos ya en v10 traen la
+// clave en minutos y se dejan intactos. No se descarta nada.
 
 import type {
   Attachment,
@@ -37,6 +45,7 @@ import {
   DEFAULT_PRICES,
   DEFAULT_SETTINGS,
   MIGRATED_METHOD_ID,
+  TIME_REAL_VERSION,
 } from './constants';
 import { newId } from './id';
 import { applyDiscountChain } from './discount';
@@ -72,6 +81,32 @@ interface V2Intermediate {
   prices: Prices;
   students: Record<string, Student>;
   days: Record<string, Record<string, V2Entry>>;
+}
+
+/**
+ * ¿El origen usa la clave vieja (hora entera 7..16) en vez de minutos? True para todo
+ * dato con versión anterior a la "agenda de tiempo real" (o sin versión: prototipos y
+ * datos v1..v9). En ese caso la clave de cada clase se multiplica por 60 (hora → minutos)
+ * una sola vez. Los datos ya en v10 traen la clave en minutos y se dejan como están.
+ */
+function usesLegacyHourKeys(raw: unknown): boolean {
+  const version = Number((raw as { version?: unknown } | null | undefined)?.version);
+  return !(Number.isFinite(version) && version >= TIME_REAL_VERSION);
+}
+
+/**
+ * Referencia a la clase de un pago (`classRef`). Acepta el formato nuevo `{ day, start }`
+ * (minutos) y el viejo `{ day, hour }` (hora entera, que se multiplica por 60). Se prefiere
+ * `start` si viene; si no, se convierte `hour`. Devuelve undefined si no hay día válido.
+ */
+function parseClassRef(raw: unknown): { day: string; start: number } | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as { day?: unknown; hour?: unknown; start?: unknown };
+  if (typeof r.day !== 'string' || !r.day) return undefined;
+  const start = Number(r.start);
+  if (Number.isFinite(start)) return { day: r.day, start }; // formato nuevo (minutos)
+  const hour = Number(r.hour);
+  return { day: r.day, start: (Number.isFinite(hour) ? hour : 0) * 60 }; // formato viejo (hora → minutos)
 }
 
 /** Sanea un descuento externo; devuelve undefined si no es válido. */
@@ -236,14 +271,21 @@ function normalizeToV2(raw: unknown): V2Intermediate {
   }
 
   // 2) Días y clases. Aceptamos participants (v2/v3) y names (v1).
+  //    La clave de cada clase se normaliza a MINUTOS de inicio: los datos viejos traen la
+  //    hora entera (7..16) y se multiplican por 60; los datos v10 ya vienen en minutos.
+  const legacyKeys = usesLegacyHourKeys(raw);
   const days: V2Intermediate['days'] = {};
   if (src.days && typeof src.days === 'object') {
     for (const [dKey, rawSlots] of Object.entries(src.days)) {
       if (!rawSlots || typeof rawSlots !== 'object') continue;
       const cleanSlots: Record<string, V2Entry> = {};
 
-      for (const [hour, rawEntry] of Object.entries(rawSlots as Record<string, unknown>)) {
+      for (const [slotKeyRaw, rawEntry] of Object.entries(rawSlots as Record<string, unknown>)) {
         if (!rawEntry || typeof rawEntry !== 'object') continue;
+        const rawKeyNum = Number(slotKeyRaw);
+        if (!Number.isFinite(rawKeyNum)) continue; // clave inservible: se omite esa clase
+        // Hora entera → minutos (×60) para datos viejos; en v10 la clave ya está en minutos.
+        const slotKey = String(legacyKeys ? rawKeyNum * 60 : rawKeyNum);
         const entry = rawEntry as {
           type?: unknown;
           participants?: unknown;
@@ -300,7 +342,7 @@ function normalizeToV2(raw: unknown): V2Intermediate {
 
         const durationNum = Number(entry.duration);
         const validStates: ClassState[] = ['confirmada', 'tentativa', 'cancelada', 'ausente'];
-        cleanSlots[hour] = {
+        cleanSlots[slotKey] = {
           type,
           participants: pricedParticipants,
           price: priceNum,
@@ -362,10 +404,8 @@ function normalizePayments(raw: unknown, validMethodIds: Set<string>): Record<st
       methodId,
       concept: typeof p.concept === 'string' ? p.concept : undefined,
       kind,
-      classRef:
-        p.classRef && typeof p.classRef === 'object' && typeof (p.classRef as { day?: unknown }).day === 'string'
-          ? { day: (p.classRef as { day: string }).day, hour: Number((p.classRef as { hour: unknown }).hour) || 0 }
-          : undefined,
+      // Referencia a la clase: se convierte hora→minutos si venía en el formato viejo.
+      classRef: parseClassRef(p.classRef),
       packId: typeof p.packId === 'string' ? p.packId : undefined,
     };
   }
@@ -456,8 +496,9 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
   const days: AgendaData['days'] = {};
   for (const [dKey, slots] of Object.entries(v2.days)) {
     const clean: AgendaData['days'][string] = {};
-    for (const [hour, entry] of Object.entries(slots)) {
-      clean[hour] = {
+    // La clave (startStr) ya está en minutos: se copia tal cual.
+    for (const [startStr, entry] of Object.entries(slots)) {
+      clean[startStr] = {
         type: entry.type,
         participants: entry.participants,
         price: entry.price,
@@ -479,7 +520,8 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
   } else {
     payments = {};
     for (const [dKey, slots] of Object.entries(v2.days)) {
-      for (const [hour, entry] of Object.entries(slots)) {
+      // La clave del slot ya está en minutos (normalizeToV2 convirtió las horas viejas).
+      for (const [startStr, entry] of Object.entries(slots)) {
         if (!entry.paid) continue;
         const n = entry.participants.length || 1;
         for (const p of entry.participants) {
@@ -495,7 +537,7 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
             methodId: MIGRATED_METHOD_ID,
             concept: 'Cobro migrado',
             kind: 'clase',
-            classRef: { day: dKey, hour: Number(hour) },
+            classRef: { day: dKey, start: Number(startStr) },
           };
         }
       }
@@ -538,12 +580,14 @@ function normalizeBlocks(raw: unknown): Record<string, DayBlock> {
 }
 
 /**
- * Punto de entrada: normaliza cualquier JSON (v1..v9) a un AgendaData v9 completo.
+ * Punto de entrada: normaliza cualquier JSON (v1..v10) a un AgendaData v10 completo.
  * Encadena las migraciones anteriores; migrateV2toV3 ya emite la versión actual
- * (DATA_VERSION = 9) con todos los campos nuevos conservados (contenido/adjuntos,
- * objetivos/notas, horario/días laborales/tema, categoría/nivel, precio por alumno, y
- * ahora el recordatorio por turno). Idempotente, no descarta nada.
+ * (DATA_VERSION = 10) con todos los campos nuevos conservados (contenido/adjuntos,
+ * objetivos/notas, horario/días laborales/tema, categoría/nivel, precio por alumno,
+ * recordatorio por turno) y con la clave de cada clase en minutos (agenda de tiempo
+ * real). La conversión hora→minutos se aplica una sola vez, gateada por la versión del
+ * origen (ver usesLegacyHourKeys). No descarta nada.
  */
-export function normalizeToV9(raw: unknown): AgendaData {
+export function normalizeToV10(raw: unknown): AgendaData {
   return migrateV2toV3(normalizeToV2(raw), raw);
 }

@@ -55,7 +55,8 @@ export function isWorkday(settings: Settings, date: Date): boolean {
 /**
  * Horas a mostrar en la agenda de UN día: la unión del horario configurado con
  * cualquier hora que ya tenga clase o bloqueo (salvaguarda: si achicás el horario,
- * no se esconde una clase vieja que quedó fuera de rango).
+ * no se esconde una clase vieja que quedó fuera de rango). La clave de cada clase está
+ * en minutos (v10): se convierte a su HORA (bucket) para saber en qué fila mostrarla.
  */
 export function displayHoursForDay(
   settings: Settings,
@@ -63,7 +64,7 @@ export function displayHoursForDay(
   block?: DayBlock
 ): number[] {
   const set = new Set(scheduleHours(settings));
-  if (slots) for (const h of Object.keys(slots)) set.add(Number(h));
+  if (slots) for (const startStr of Object.keys(slots)) set.add(Math.floor(Number(startStr) / 60));
   if (block?.hours) for (const h of block.hours) set.add(h);
   return [...set].sort((a, b) => a - b);
 }
@@ -73,7 +74,7 @@ export function displayHoursForDays(settings: Settings, data: AgendaData, dayKey
   const set = new Set(scheduleHours(settings));
   for (const key of dayKeys) {
     const slots = data.days[key];
-    if (slots) for (const h of Object.keys(slots)) set.add(Number(h));
+    if (slots) for (const startStr of Object.keys(slots)) set.add(Math.floor(Number(startStr) / 60));
   }
   return [...set].sort((a, b) => a - b);
 }

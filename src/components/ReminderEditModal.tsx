@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES_LONG } from '../lib/constants';
+import { minutesToLabel } from '../lib/time';
 
 /** Formatea un Date a "YYYY-MM-DDTHH:mm" (lo que usa <input type="datetime-local">). */
 function toLocalInput(d: Date): string {
@@ -12,18 +13,19 @@ function toLocalInput(d: Date): string {
 
 interface ReminderEditModalProps {
   day: string;
-  hour: number;
+  /** Hora de inicio de la clase en minutos (v10). */
+  start: number;
   onClose: () => void;
 }
 
 /** Agrega / edita / borra el recordatorio de un turno puntual. */
-export default function ReminderEditModal({ day, hour, onClose }: ReminderEditModalProps) {
+export default function ReminderEditModal({ day, start, onClose }: ReminderEditModalProps) {
   const { data, setReminder } = useAgenda();
-  const existing = data.days[day]?.[String(hour)]?.reminder;
+  const existing = data.days[day]?.[String(start)]?.reminder;
 
   // Hora de inicio de la clase, para las opciones rápidas ("X min antes").
   const classStart = parseDayKey(day);
-  classStart.setHours(hour, 0, 0, 0);
+  classStart.setHours(Math.floor(start / 60), start % 60, 0, 0);
   const defaultAt = existing?.remindAt ?? toLocalInput(new Date(classStart.getTime() - 30 * 60000));
 
   const [text, setText] = useState(existing?.text ?? '');
@@ -45,17 +47,17 @@ export default function ReminderEditModal({ day, hour, onClose }: ReminderEditMo
     }
     // Si cambió la hora del aviso, vuelve a estar pendiente (se resetea "done").
     const done = existing && existing.remindAt === remindAt ? existing.done : false;
-    setReminder(day, hour, { text: t, remindAt, done });
+    setReminder(day, start, { text: t, remindAt, done });
     onClose();
   }
 
   function handleDelete() {
-    setReminder(day, hour, null);
+    setReminder(day, start, null);
     onClose();
   }
 
   const date = parseDayKey(day);
-  const title = `Recordatorio · ${WEEKDAY_NAMES_LONG[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1} · ${hour}:00`;
+  const title = `Recordatorio · ${WEEKDAY_NAMES_LONG[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1} · ${minutesToLabel(start)}`;
 
   return (
     <Modal title={title} onClose={onClose}>

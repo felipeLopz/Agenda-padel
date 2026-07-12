@@ -5,6 +5,13 @@
 // de cada clase YA NO se guarda: se DERIVA de los pagos registrados (ver
 // lib/money.ts). El formato v2 (con `paid` por clase) se migra automáticamente
 // (ver lib/migrate.ts), sin perder nada.
+//
+// v10 (Agenda de tiempo real): la agenda deja de ser "una clase por hora entera".
+// Ahora la CLAVE de cada clase dentro del día es su HORA DE INICIO EN MINUTOS desde
+// la medianoche (9:00 = "540", 9:30 = "570") y, con su `duration`, ocupa su rango
+// real [inicio, inicio+duración). Los pagos referencian la clase por `{ day, start }`
+// (antes `{ day, hour }`). La migración v9→v10 convierte las horas enteras a minutos
+// (hora × 60) sin perder nada (ver lib/migrate.ts).
 
 /** Grupal: varios alumnos, se cobra por alumno. Individual: un solo alumno, precio por clase. */
 export type ClassType = 'grupal' | 'indiv';
@@ -135,7 +142,10 @@ export interface ClassEntry {
   participants: ClassParticipant[];
   /** Precio "de lista" de la clase completa (antes de descuentos). */
   price: number;
-  /** Duración en minutos. Ausente = 60 (compatibilidad con datos v3). */
+  /**
+   * Duración en minutos. Ausente = 60 (compatibilidad con datos v3). Junto con la clave
+   * del día (hora de inicio en minutos) define el rango real que ocupa la clase (v10).
+   */
   duration?: number;
   /** Estado de agenda. Ausente = 'confirmada'. Las 'cancelada' no generan plata. */
   state?: ClassState;
@@ -160,7 +170,12 @@ export interface DayBlock {
   reason?: string;
 }
 
-/** Una franja horaria por día: la clave es la hora ("7".."16"). */
+/**
+ * Clases de un día. La CLAVE es la hora de inicio EN MINUTOS desde la medianoche
+ * (v10): 9:00 = "540", 9:30 = "570". Antes (v9) la clave era la hora entera ("7".."16")
+ * y la duración era solo visual; ahora cada clase ocupa su rango real
+ * [inicio, inicio+duración) y no se permiten solapamientos al cargar/mover.
+ */
 export type DaySlots = Record<string, ClassEntry>;
 
 /**
@@ -198,8 +213,11 @@ export interface Payment {
   concept?: string;
   /** Origen del pago: cobro de clase(s), compra de pack, o ajuste manual. */
   kind: 'clase' | 'pack' | 'ajuste';
-  /** Si vino del cobro rápido de una clase puntual (para poder deshacerlo). */
-  classRef?: { day: DayKey; hour: number };
+  /**
+   * Si vino del cobro rápido de una clase puntual (para poder deshacerlo). Referencia
+   * la clase por su día y su hora de inicio en minutos (v10; antes era la hora entera).
+   */
+  classRef?: { day: DayKey; start: number };
   /** Si es la compra de un pack. */
   packId?: string;
 }
@@ -248,7 +266,7 @@ export interface Settings {
 }
 
 export interface AgendaData {
-  /** Versión del formato de datos (3 = con plata). Permite migraciones futuras. */
+  /** Versión del formato de datos (10 = agenda de tiempo real). Permite migraciones futuras. */
   version: number;
   prices: Prices;
   days: Record<DayKey, DaySlots>;
@@ -267,10 +285,11 @@ export interface AgendaData {
   blocks: Record<DayKey, DayBlock>;
 }
 
-/** Franja (día + hora) que se está creando o editando en el formulario de clase. */
+/** Franja (día + hora de inicio en minutos) que se crea o edita en el formulario de clase. */
 export interface ClassFormTarget {
   day: DayKey;
-  hour: number;
+  /** Hora de inicio en minutos desde la medianoche (v10). */
+  start: number;
   /** null cuando es una clase nueva; la clase existente cuando se edita. */
   entry: ClassEntry | null;
 }

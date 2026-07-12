@@ -566,6 +566,219 @@ textarea:focus {
 }
 
 /* -------------------------------------------------------------------------
+   Vista semanal: calendario de tiempo real (v10). Cada clase es un bloque
+   ubicado en su horario exacto, con altura proporcional a su duración.
+   (Las reglas .week-grid/.week-cell de arriba quedaron para el estilo del
+   encabezado de día —head-dow/date/total, marcas— reusado por esta vista.)
+   ------------------------------------------------------------------------- */
+
+.weekly-view__hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: -4px 0 6px;
+}
+
+.week-cal {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+
+.week-cal__head,
+.week-cal__body {
+  display: grid;
+  grid-template-columns: 52px repeat(7, minmax(116px, 1fr));
+  min-width: 820px;
+}
+
+.week-cal__head {
+  border-bottom: 1px solid var(--border);
+}
+
+.week-cal__corner {
+  background: var(--bg-elevated);
+}
+
+.week-cal__day-head {
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border-left: 1px solid var(--border);
+}
+
+.week-cal__day-head--today {
+  background: rgba(47, 107, 255, 0.18);
+}
+
+/* Eje de horas a la izquierda. */
+.week-cal__axis {
+  position: relative;
+}
+
+.week-cal__axis-hour {
+  box-sizing: border-box;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: right;
+  padding-right: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* Columna de un día: fondo con una línea por hora, click para agregar. */
+.week-cal__col {
+  position: relative;
+  border-left: 1px solid var(--border);
+  background-image: linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-repeat: repeat;
+  cursor: copy;
+}
+
+.week-cal__col--today {
+  background-color: rgba(47, 107, 255, 0.05);
+}
+
+.week-cal__body--free .week-cal__col {
+  background-color: rgba(45, 193, 122, 0.06);
+}
+
+/* Banda de un bloqueo (día completo o franja). No captura el click (bloqueo blando). */
+.week-cal__block-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 92, 108, 0.07),
+    rgba(255, 92, 108, 0.07) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+/* Bloque de una clase, posicionado y con altura proporcional a la duración. */
+.cal-event {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: 3px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+  font-size: 11px;
+  overflow: hidden;
+  cursor: grab;
+  z-index: 1;
+  transition: box-shadow 0.35s ease, background-color 0.35s ease;
+}
+
+.cal-event:hover {
+  background: var(--bg-card-hover);
+  z-index: 3;
+}
+
+.cal-event:active {
+  cursor: grabbing;
+}
+
+.cal-event__time {
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.cal-event__type {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.cal-event__names {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-event__price {
+  font-weight: 700;
+}
+
+.cal-event--grupal {
+  border-left-color: var(--blue);
+}
+
+.cal-event--indiv {
+  border-left-color: var(--orange);
+}
+
+.cal-event--pagada {
+  box-shadow: inset 0 0 0 999px var(--green-dim);
+}
+
+.cal-event--parcial {
+  box-shadow: inset 0 0 0 999px var(--amber-dim);
+}
+
+.cal-event--impaga {
+  box-shadow: inset 0 0 0 999px rgba(255, 92, 108, 0.12);
+}
+
+.cal-event--state-cancelada {
+  opacity: 0.55;
+}
+
+.cal-event--state-cancelada .cal-event__names,
+.cal-event--state-cancelada .cal-event__price {
+  text-decoration: line-through;
+}
+
+.cal-event--state-tentativa {
+  border-style: dashed;
+}
+
+.cal-event--overlap {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+
+.cal-event__overlap {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 11px;
+  color: var(--amber);
+}
+
+.cal-event__state {
+  text-transform: capitalize;
+  color: var(--amber);
+}
+
+.cal-event__money-note {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cal-event__money-note--cobra {
+  color: var(--green);
+}
+
+.cal-event__money-note--no-cobra {
+  color: var(--danger);
+}
+
+/* -------------------------------------------------------------------------
    Modales
    ------------------------------------------------------------------------- */
 

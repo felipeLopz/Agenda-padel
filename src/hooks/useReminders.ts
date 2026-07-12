@@ -4,7 +4,8 @@ import type { ClassEntry, Reminder } from '../types';
 
 export interface DueReminder {
   day: string;
-  hour: number;
+  /** Hora de inicio de la clase en minutos (v10). */
+  start: number;
   entry: ClassEntry;
   reminder: Reminder;
   /** Momento del aviso en ms (para ordenar/comparar). */
@@ -31,12 +32,12 @@ export function useReminders(): { due: DueReminder[]; upcoming: DueReminder[]; d
     const due: DueReminder[] = [];
     const upcoming: DueReminder[] = [];
     for (const [day, slots] of Object.entries(data.days)) {
-      for (const [hourStr, entry] of Object.entries(slots)) {
+      for (const [startStr, entry] of Object.entries(slots)) {
         const r = entry.reminder;
         if (!r || r.done) continue;
         const at = new Date(r.remindAt).getTime();
         if (Number.isNaN(at)) continue;
-        const item: DueReminder = { day, hour: Number(hourStr), entry, reminder: r, at };
+        const item: DueReminder = { day, start: Number(startStr), entry, reminder: r, at };
         if (at <= now) due.push(item);
         else upcoming.push(item);
       }

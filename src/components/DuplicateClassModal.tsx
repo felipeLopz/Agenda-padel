@@ -3,11 +3,12 @@ import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
-import { scheduleHours } from '../lib/schedule';
 import { classNames } from '../lib/students';
+import { classDuration } from '../lib/classMeta';
+import { findOverlapStart, hhmmToMinutes, minutesToHHMM, minutesToLabel, nextFreeStart } from '../lib/time';
 
 interface DuplicateClassModalProps {
-  from: { day: string; hour: number };
+  from: { day: string; start: number };
   onClose: () => void;
 }
 
@@ -24,9 +25,9 @@ function isoToDayKey(iso: string): string {
 /** Duplica una clase a otra franja (copia alumnos, precio, descuentos, etc.). */
 export default function DuplicateClassModal({ from, onClose }: DuplicateClassModalProps) {
   const { data, duplicateClass } = useAgenda();
-  const entry = data.days[from.day]?.[String(from.hour)];
+  const entry = data.days[from.day]?.[String(from.start)];
   const [iso, setIso] = useState(() => dayToISO(from.day));
-  const [hour, setHour] = useState(from.hour);
+  const [start, setStart] = useState(from.start);
 
   if (!entry) {
     onClose();
@@ -35,12 +36,24 @@ export default function DuplicateClassModal({ from, onClose }: DuplicateClassMod
 
   const fromDate = parseDayKey(from.day);
   const label = classNames(entry, data.students).join(', ') || `${entry.participants.length} alumno(s)`;
-  const hours = scheduleHours(data.settings);
 
   function handleDuplicate() {
-    const ok = duplicateClass(from, { day: isoToDayKey(iso), hour });
+    if (!entry) return;
+    const to = { day: isoToDayKey(iso), start };
+    const ok = duplicateClass(from, to);
     if (!ok) {
-      alert('Ya hay una clase en ese día y hora. Elegí otra franja.');
+      // Se solapa con otra clase del día destino: proponer el próximo horario libre.
+      const suggestion = nextFreeStart(data.days[to.day], start, classDuration(entry));
+      const conflict = findOverlapStart(data.days[to.day], start, classDuration(entry));
+      const conflictEntry = conflict != null ? data.days[to.day]?.[String(conflict)] : undefined;
+      const conflictLabel =
+        conflict != null && conflictEntry
+          ? `${minutesToLabel(conflict)}–${minutesToLabel(conflict + classDuration(conflictEntry))}`
+          : 'otra clase';
+      alert(
+        `No se puede duplicar ahí: se solapa con ${conflictLabel}.` +
+          (suggestion != null ? ` Probá desde las ${minutesToLabel(suggestion)}.` : '')
+      );
       return;
     }
     onClose();
@@ -51,7 +64,8 @@ export default function DuplicateClassModal({ from, onClose }: DuplicateClassMod
       <div className="class-form">
         <p className="settings__hint">
           Duplicar «{label}» de {WEEKDAY_NAMES_LONG[fromDate.getDay()]} {fromDate.getDate()}/{fromDate.getMonth() + 1}{' '}
-          · {from.hour}:00. Copia alumnos, precio, descuentos, duración y contenido. La copia arranca sin cobrar.
+          · {minutesToLabel(from.start)}. Copia alumnos, precio, descuentos, duración y contenido. La copia arranca sin
+          cobrar.
         </p>
         <div className="class-form__row class-form__row--split">
           <div>
@@ -60,13 +74,15 @@ export default function DuplicateClassModal({ from, onClose }: DuplicateClassMod
           </div>
           <div>
             <label>Hora</label>
-            <select className="select" value={hour} onChange={(e) => setHour(Number(e.target.value))}>
-              {hours.map((h) => (
-                <option key={h} value={h}>
-                  {h}:00
-                </option>
-              ))}
-            </select>
+            <input
+              type="time"
+              step={900}
+              value={minutesToHHMM(start)}
+              onChange={(e) => {
+                const m = hhmmToMinutes(e.target.value);
+                if (m != null) setStart(m);
+              }}
+            />
           </div>
         </div>
         <div className="class-form__actions">

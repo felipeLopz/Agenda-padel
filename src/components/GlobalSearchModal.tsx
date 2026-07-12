@@ -5,6 +5,7 @@ import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { WEEKDAY_NAMES } from '../lib/constants';
 import { classNames, displayName, normalizeName } from '../lib/students';
+import { minutesToLabel } from '../lib/time';
 import type { ClassType, Student } from '../types';
 
 interface GlobalSearchModalProps {
@@ -15,7 +16,7 @@ interface GlobalSearchModalProps {
 
 interface ClassHit {
   day: string;
-  hour: number;
+  start: number;
   type: ClassType;
   names: string;
 }
@@ -50,17 +51,17 @@ export default function GlobalSearchModal({ onClose, onOpenStudent, onOpenDay }:
     if (!q) return [];
     const hits: ClassHit[] = [];
     for (const [day, slots] of Object.entries(data.days)) {
-      for (const [hourStr, entry] of Object.entries(slots)) {
+      for (const [startStr, entry] of Object.entries(slots)) {
         const names = classNames(entry, data.students);
         const topics = entry.content ?? [];
         const matches =
           names.some((n) => normalizeName(n).includes(q)) ||
           topics.some((t) => normalizeName(t).includes(q));
-        if (matches) hits.push({ day, hour: Number(hourStr), type: entry.type, names: names.join(', ') });
+        if (matches) hits.push({ day, start: Number(startStr), type: entry.type, names: names.join(', ') });
       }
     }
     return hits
-      .sort((a, b) => parseDayKey(b.day).getTime() - parseDayKey(a.day).getTime() || b.hour - a.hour)
+      .sort((a, b) => parseDayKey(b.day).getTime() - parseDayKey(a.day).getTime() || b.start - a.start)
       .slice(0, LIMIT);
   }, [q, data.days, data.students]);
 
@@ -109,10 +110,10 @@ export default function GlobalSearchModal({ onClose, onOpenStudent, onOpenDay }:
           {classes.map((c) => {
             const date = parseDayKey(c.day);
             return (
-              <button key={`${c.day}-${c.hour}`} className="search-result" onClick={() => onOpenDay(c.day)}>
+              <button key={`${c.day}-${c.start}`} className="search-result" onClick={() => onOpenDay(c.day)}>
                 <span>
                   {WEEKDAY_NAMES[date.getDay()]} {date.getDate()}/{date.getMonth() + 1}/{date.getFullYear()} ·{' '}
-                  {c.hour}:00
+                  {minutesToLabel(c.start)}
                 </span>
                 <span className={`badge badge--${c.type}`}>{c.type === 'grupal' ? 'Grupal' : 'Individual'}</span>
                 <span className="search-result__sub">{c.names}</span>

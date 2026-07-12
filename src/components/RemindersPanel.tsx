@@ -2,6 +2,7 @@ import Modal from './Modal';
 import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES } from '../lib/constants';
 import { classNames } from '../lib/students';
+import { minutesToLabel } from '../lib/time';
 import { useAgenda } from '../state/AgendaContext';
 import type { DueReminder } from '../hooks/useReminders';
 
@@ -25,14 +26,14 @@ export default function RemindersPanel({ due, upcoming, onOpenDay, onClose }: Re
   const { data, setReminder } = useAgenda();
 
   function markDone(r: DueReminder) {
-    setReminder(r.day, r.hour, { ...r.reminder, done: true });
+    setReminder(r.day, r.start, { ...r.reminder, done: true });
   }
 
   function row(r: DueReminder, pending: boolean) {
     const date = parseDayKey(r.day);
     const names = classNames(r.entry, data.students).join(', ') || 'Turno';
     return (
-      <div key={`${r.day}-${r.hour}`} className={`reminder-row${pending ? ' reminder-row--due' : ''}`}>
+      <div key={`${r.day}-${r.start}`} className={`reminder-row${pending ? ' reminder-row--due' : ''}`}>
         <div className="reminder-row__main">
           <span className="reminder-row__text">🔔 {r.reminder.text}</span>
           <button
@@ -42,7 +43,7 @@ export default function RemindersPanel({ due, upcoming, onOpenDay, onClose }: Re
               onClose();
             }}
           >
-            {WEEKDAY_NAMES[date.getDay()]} {date.getDate()}/{date.getMonth() + 1} · {r.hour}:00 · {names}
+            {WEEKDAY_NAMES[date.getDay()]} {date.getDate()}/{date.getMonth() + 1} · {minutesToLabel(r.start)} · {names}
           </button>
           <span className="reminder-row__when">Avisar: {whenLabel(r.reminder.remindAt)}</span>
         </div>
