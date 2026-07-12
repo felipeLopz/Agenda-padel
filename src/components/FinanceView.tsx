@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { MONTH_NAMES } from '../lib/constants';
 import { formatCurrency } from '../lib/format';
 import { displayName } from '../lib/students';
@@ -26,6 +27,7 @@ function pad2(n: number): string {
 /** Sección "Caja": proyección, ganancia neta, ingresos por medio, deudores y gastos. */
 export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
   const { data, ledger, deleteExpense } = useAgenda();
+  const dialog = useDialog();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -175,8 +177,9 @@ export default function FinanceView({ onOpenStudent }: FinanceViewProps) {
                 </button>
                 <button
                   className="icon-btn icon-btn--danger"
-                  onClick={() => {
-                    if (confirm('¿Borrar este gasto?')) deleteExpense(e.id);
+                  onClick={async () => {
+                    if (await dialog.confirm('¿Borrar este gasto?', { danger: true, confirmLabel: 'Borrar' }))
+                      deleteExpense(e.id);
                   }}
                   aria-label="Borrar gasto"
                 >

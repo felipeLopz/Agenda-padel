@@ -10,6 +10,7 @@ import { classDuration, classState, isHourBlocked, stateMoneyNote } from '../lib
 import { classRangeLabel, computeDayOverlaps, minutesToLabel, nextFreeStart, snapMinutes } from '../lib/time';
 import { holidayName } from '../lib/holidays';
 import { useSlideDirection } from '../hooks/useSlideDirection';
+import { useDialog } from '../state/DialogContext';
 import type { ClassEntry } from '../types';
 
 interface WeeklyViewProps {
@@ -40,6 +41,7 @@ export default function WeeklyView({
   onBlockDay,
 }: WeeklyViewProps) {
   const { data, ledger, moveClass } = useAgenda();
+  const dialog = useDialog();
   const monday = startOfWeek(anchor);
   const slideDir = useSlideDirection(monday.getTime());
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
@@ -109,7 +111,7 @@ export default function WeeklyView({
     if (!ok && entry) {
       const excludeStart = to.day === drag.day ? drag.start : undefined;
       const suggestion = nextFreeStart(data.days[to.day], to.start, classDuration(entry), excludeStart);
-      alert(
+      void dialog.alert(
         'No se puede: se solapa con otra clase.' +
           (suggestion != null ? ` Probá desde las ${minutesToLabel(suggestion)}.` : '')
       );

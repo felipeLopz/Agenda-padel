@@ -3,6 +3,7 @@ import Modal from './Modal';
 import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
 import { useAuth } from '../state/AuthContext';
+import { useDialog } from '../state/DialogContext';
 import { newId } from '../lib/id';
 import { DEFAULT_WORKDAYS } from '../lib/constants';
 import { WEEKDAY_OPTIONS } from '../lib/schedule';
@@ -19,6 +20,7 @@ interface SettingsModalProps {
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const { data, setPrices, setPaymentMethods, setSettings, exportData, importData } = useAgenda();
   const { user, signOut } = useAuth();
+  const dialog = useDialog();
   const [grupal, setGrupal] = useState(data.prices.grupal);
   const [indiv, setIndiv] = useState(data.prices.indiv);
   const [methods, setMethods] = useState<PaymentMethod[]>(data.paymentMethods);
@@ -50,7 +52,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   function removeMethod(id: string) {
     if (methods.length === 1) {
-      alert('Tiene que quedar al menos un medio de pago.');
+      void dialog.alert('Tiene que quedar al menos un medio de pago.');
       return;
     }
     const next = methods.filter((m) => m.id !== id);
@@ -82,16 +84,20 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!confirm('Importar reemplazará todos los datos actuales de este dispositivo. ¿Continuar?')) {
+    const ok = await dialog.confirm(
+      'Importar reemplazará todos los datos actuales de este dispositivo. ¿Continuar?',
+      { danger: true, confirmLabel: 'Importar y reemplazar' }
+    );
+    if (!ok) {
       e.target.value = '';
       return;
     }
     try {
       await importData(file);
-      alert('Datos importados correctamente.');
+      void dialog.alert('Datos importados correctamente.');
       onClose();
     } catch {
-      alert('El archivo no tiene un formato JSON válido.');
+      void dialog.alert('El archivo no tiene un formato JSON válido.');
     } finally {
       e.target.value = '';
     }

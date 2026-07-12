@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS, COMMON_TOPICS } from '../lib/constants';
 import { suggestedPrice } from '../lib/pricing';
@@ -32,6 +33,7 @@ function emptyParticipant(): ClassParticipant {
 /** Alta y edición de una clase, con duración, estado y recurrencia. */
 export default function ClassFormModal({ target, onClose, onReminder, onRepeat }: ClassFormModalProps) {
   const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, createSeries, updateSeries } = useAgenda();
+  const dialog = useDialog();
   // `initialStart` es la franja actual de la clase (su clave); `start` es la elegida en el form.
   const { day, start: initialStart, entry } = target;
 
@@ -113,7 +115,7 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
         onClose();
         return;
       }
-      alert('Ingresá al menos un alumno.');
+      void dialog.alert('Ingresá al menos un alumno.');
       return;
     }
 
@@ -129,7 +131,7 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
           ? `${minutesToLabel(conflictStart)}–${minutesToLabel(conflictStart + classDuration(other))}`
           : minutesToLabel(conflictStart);
         const suggestion = nextFreeStart(data.days[day], start, duration, excludeStart);
-        alert(
+        void dialog.alert(
           `No se puede: esta clase se solapa con la de las ${otherRange}.` +
             (suggestion != null
               ? ` Probá desde las ${minutesToLabel(suggestion)}.`
@@ -178,7 +180,7 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
       const res = createSeries(day, start, finalEntry, recurrence);
       let msg = `Se crearon ${res.created} clases de la serie.`;
       if (res.skipped > 0) msg += ` Se omitieron ${res.skipped} (se solapaban con otra clase de ese día).`;
-      alert(msg);
+      void dialog.alert(msg);
       onClose();
       return;
     }
@@ -424,8 +426,13 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
             <button
               type="button"
               className="btn btn--small day-slot__delete-btn class-form__delete"
-              onClick={() => {
-                if (confirm('¿Borrar este turno entero? Podés deshacerlo con "Deshacer".')) {
+              onClick={async () => {
+                if (
+                  await dialog.confirm('¿Borrar este turno entero? Podés deshacerlo con "Deshacer".', {
+                    danger: true,
+                    confirmLabel: 'Borrar turno',
+                  })
+                ) {
                   deleteClass(day, initialStart);
                   onClose();
                 }

@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { newId } from '../lib/id';
 import { fileToCompressedDataURL } from '../lib/image';
 import { PADEL_CATEGORIES, CATEGORY_LABELS, PADEL_RANKS, RANK_LABELS } from '../lib/students';
@@ -18,6 +19,7 @@ interface StudentFormModalProps {
 /** Alta y edición de una ficha de alumno. */
 export default function StudentFormModal({ student, onClose, onSaved }: StudentFormModalProps) {
   const { upsertStudent } = useAgenda();
+  const dialog = useDialog();
 
   const [firstName, setFirstName] = useState(student?.firstName ?? '');
   const [lastName, setLastName] = useState(student?.lastName ?? '');
@@ -39,7 +41,7 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
     try {
       setPhoto(await fileToCompressedDataURL(file));
     } catch {
-      alert('No se pudo procesar la imagen.');
+      void dialog.alert('No se pudo procesar la imagen.');
     } finally {
       e.target.value = '';
     }
@@ -57,7 +59,7 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
 
   function handleSave() {
     if (!firstName.trim() && !lastName.trim()) {
-      alert('Ingresá al menos un nombre o apellido.');
+      void dialog.alert('Ingresá al menos un nombre o apellido.');
       return;
     }
     const saved: Student = {

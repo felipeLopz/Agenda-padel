@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { minutesToLabel } from '../lib/time';
@@ -21,6 +22,7 @@ interface ReminderEditModalProps {
 /** Agrega / edita / borra el recordatorio de un turno puntual. */
 export default function ReminderEditModal({ day, start, onClose }: ReminderEditModalProps) {
   const { data, setReminder } = useAgenda();
+  const dialog = useDialog();
   const existing = data.days[day]?.[String(start)]?.reminder;
 
   // Hora de inicio de la clase, para las opciones rápidas ("X min antes").
@@ -38,11 +40,11 @@ export default function ReminderEditModal({ day, start, onClose }: ReminderEditM
   function handleSave() {
     const t = text.trim();
     if (!t) {
-      alert('Escribí la nota del recordatorio.');
+      void dialog.alert('Escribí la nota del recordatorio.');
       return;
     }
     if (!remindAt) {
-      alert('Elegí la hora del aviso.');
+      void dialog.alert('Elegí la hora del aviso.');
       return;
     }
     // Si cambió la hora del aviso, vuelve a estar pendiente (se resetea "done").

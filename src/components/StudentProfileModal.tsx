@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { WEEKDAY_NAMES } from '../lib/constants';
@@ -26,6 +27,7 @@ interface StudentProfileModalProps {
 /** Ficha completa del alumno: datos, saldo, packs, historial de clases y de pagos. */
 export default function StudentProfileModal({ studentId, onClose, onEdit, onOpenDay }: StudentProfileModalProps) {
   const { data, ledger, setStudentActive, upsertStudent, deletePayment, deletePack } = useAgenda();
+  const dialog = useDialog();
   const { isExiting, removeWithAnim } = useExitAnim();
   const student = data.students[studentId];
   const [payOpen, setPayOpen] = useState(false);
@@ -165,8 +167,9 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
                 <span className="pack-row__date">desde {st.pack.purchaseDate.split('-').reverse().join('/')}</span>
                 <button
                   className="icon-btn icon-btn--danger"
-                  onClick={() => {
-                    if (confirm('¿Borrar el pack y su pago de compra?')) deletePack(st.pack.id);
+                  onClick={async () => {
+                    if (await dialog.confirm('¿Borrar el pack y su pago de compra?', { danger: true, confirmLabel: 'Borrar' }))
+                      deletePack(st.pack.id);
                   }}
                   aria-label="Borrar pack"
                 >
@@ -290,8 +293,9 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
                 </button>
                 <button
                   className="icon-btn icon-btn--danger"
-                  onClick={() => {
-                    if (confirm('¿Borrar este pago?')) removeWithAnim(p.id, () => deletePayment(p.id));
+                  onClick={async () => {
+                    if (await dialog.confirm('¿Borrar este pago?', { danger: true, confirmLabel: 'Borrar' }))
+                      removeWithAnim(p.id, () => deletePayment(p.id));
                   }}
                   aria-label="Borrar pago"
                 >

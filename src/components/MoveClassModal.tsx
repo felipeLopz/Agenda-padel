@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { classNames } from '../lib/students';
@@ -25,6 +26,7 @@ function isoToDayKey(iso: string): string {
 /** Reprograma una clase: la mueve a otro día y hora (conserva todo). */
 export default function MoveClassModal({ from, onClose }: MoveClassModalProps) {
   const { data, moveClass } = useAgenda();
+  const dialog = useDialog();
   const entry = data.days[from.day]?.[String(from.start)];
   const [iso, setIso] = useState(() => todayISO(from.day));
   // Hora de inicio elegida, en minutos.
@@ -52,7 +54,7 @@ export default function MoveClassModal({ from, onClose }: MoveClassModalProps) {
         conflict != null && conflictEntry
           ? `${minutesToLabel(conflict)}–${minutesToLabel(conflict + classDuration(conflictEntry))}`
           : 'otra clase';
-      alert(
+      void dialog.alert(
         `No se puede mover ahí: se solapa con ${conflictLabel}.` +
           (suggestion != null ? ` Probá desde las ${minutesToLabel(suggestion)}.` : '')
       );

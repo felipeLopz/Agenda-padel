@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal from './Modal';
 import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { newId } from '../lib/id';
 import type { Expense } from '../types';
 
@@ -20,17 +21,18 @@ function todayISO(): string {
 /** Alta / edición de un gasto del profesor. */
 export default function ExpenseFormModal({ expense, onClose }: ExpenseFormModalProps) {
   const { upsertExpense } = useAgenda();
+  const dialog = useDialog();
   const [concept, setConcept] = useState(expense?.concept ?? '');
   const [amount, setAmount] = useState<number>(expense?.amount ?? 0);
   const [date, setDate] = useState<string>(expense?.date ?? todayISO());
 
   function handleSave() {
     if (!concept.trim()) {
-      alert('Ingresá un concepto.');
+      void dialog.alert('Ingresá un concepto.');
       return;
     }
     if (!amount || amount <= 0) {
-      alert('Ingresá un monto mayor a 0.');
+      void dialog.alert('Ingresá un monto mayor a 0.');
       return;
     }
     const saved: Expense = { id: expense?.id ?? newId(), concept: concept.trim(), amount, date };

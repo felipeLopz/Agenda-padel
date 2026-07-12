@@ -17,6 +17,7 @@ import {
 import { classRangeLabel, computeDayOverlaps, minutesToLabel } from '../lib/time';
 import { holidayName } from '../lib/holidays';
 import { useExitAnim } from '../hooks/useExitAnim';
+import { useDialog } from '../state/DialogContext';
 import AttendanceToggle from './AttendanceToggle';
 import type { ClassEntry } from '../types';
 
@@ -60,6 +61,7 @@ export default function DayAgendaModal({
     removeParticipant,
     setAttendance,
   } = useAgenda();
+  const dialog = useDialog();
   const { isExiting, removeWithAnim } = useExitAnim();
   const date = parseDayKey(day);
   const slots = data.days[day];
@@ -81,14 +83,23 @@ export default function DayAgendaModal({
   // Inicios cuyas clases se solapan con otra (marca informativa; puede venir de datos viejos).
   const overlaps = computeDayOverlaps(slots);
 
-  function handleDelete(start: number, entry: ClassEntry) {
+  async function handleDelete(start: number, entry: ClassEntry) {
     if (entry.seriesId) {
-      if (confirm('Esta clase es parte de una serie. ¿Borrar TODA la serie?\n(Aceptar = toda la serie · Cancelar = seguir)')) {
+      const borrarSerie = await dialog.confirm('Esta clase es parte de una serie. ¿Qué querés borrar?', {
+        danger: true,
+        confirmLabel: 'Borrar toda la serie',
+        cancelLabel: 'No, solo esta',
+      });
+      if (borrarSerie) {
         deleteSeries(entry.seriesId);
         return;
       }
     }
-    if (confirm('¿Borrar este turno entero? Podés deshacerlo con el botón "Deshacer".')) deleteClass(day, start);
+    const ok = await dialog.confirm('¿Borrar este turno entero? Podés deshacerlo con el botón "Deshacer".', {
+      danger: true,
+      confirmLabel: 'Borrar turno',
+    });
+    if (ok) deleteClass(day, start);
   }
 
   const title = `${WEEKDAY_NAMES_LONG[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
@@ -253,9 +264,12 @@ export default function DayAgendaModal({
                   <AttendanceToggle attended={p.attended} onChange={(a) => setAttendance(day, start, idx, a)} />
                   <button
                     className="student-line__remove"
-                    onClick={() => {
-                      if (confirm(`¿Sacar a ${participantName(p, data.students)} de este turno?`))
-                        removeWithAnim(rowKey, () => removeParticipant(day, start, idx));
+                    onClick={async () => {
+                      const ok = await dialog.confirm(`¿Sacar a ${participantName(p, data.students)} de este turno?`, {
+                        danger: true,
+                        confirmLabel: 'Sacar',
+                      });
+                      if (ok) removeWithAnim(rowKey, () => removeParticipant(day, start, idx));
                     }}
                     aria-label="Sacar del turno"
                     title="Sacar del turno"

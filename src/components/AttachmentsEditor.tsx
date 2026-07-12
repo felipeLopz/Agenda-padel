@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { newId } from '../lib/id';
 import { fileToCompressedDataURL } from '../lib/image';
+import { useDialog } from '../state/DialogContext';
 import type { Attachment } from '../types';
 
 interface AttachmentsEditorProps {
@@ -20,6 +21,7 @@ function normalizeUrl(url: string): string {
  * enlace (no se sube el archivo, se pega la URL de YouTube/Drive/etc.).
  */
 export default function AttachmentsEditor({ attachments, onChange }: AttachmentsEditorProps) {
+  const dialog = useDialog();
   const list = attachments ?? [];
   const [videoUrl, setVideoUrl] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -33,7 +35,7 @@ export default function AttachmentsEditor({ attachments, onChange }: Attachments
         const dataUrl = await fileToCompressedDataURL(file, 900, 0.72);
         added.push({ id: newId(), kind: 'foto', dataUrl, createdAt: new Date().toISOString() });
       } catch {
-        alert('No se pudo procesar una imagen.');
+        void dialog.alert('No se pudo procesar una imagen.');
       }
     }
     if (added.length) onChange([...list, ...added]);

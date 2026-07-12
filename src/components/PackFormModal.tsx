@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal from './Modal';
 import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { displayName } from '../lib/students';
 
 interface PackFormModalProps {
@@ -18,6 +19,7 @@ function todayISO(): string {
 /** Crear un pack (bono prepago) para un alumno: N clases pagas por adelantado. */
 export default function PackFormModal({ studentId, onClose }: PackFormModalProps) {
   const { data, addPack } = useAgenda();
+  const dialog = useDialog();
   const student = data.students[studentId];
 
   const [totalClasses, setTotalClasses] = useState<number>(8);
@@ -32,7 +34,7 @@ export default function PackFormModal({ studentId, onClose }: PackFormModalProps
 
   function handleSave() {
     if (totalClasses <= 0) {
-      alert('El pack debe tener al menos 1 clase.');
+      void dialog.alert('El pack debe tener al menos 1 clase.');
       return;
     }
     addPack({ studentId, totalClasses: Math.round(totalClasses), price: Number(price) || 0, date, methodId });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal from './Modal';
 import NumberInput from './NumberInput';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { formatCurrency } from '../lib/format';
 import { displayName } from '../lib/students';
 import { downloadReceipt } from '../lib/receipt';
@@ -25,6 +26,7 @@ function todayISO(): string {
 /** Registrar un pago de un alumno (total o parcial), con medio y recibo opcional. */
 export default function PaymentFormModal({ studentId, onClose, defaultAmount, classRef }: PaymentFormModalProps) {
   const { data, ledger, addPayment } = useAgenda();
+  const dialog = useDialog();
   const student = data.students[studentId];
   const balance = ledger.byStudent[studentId]?.balance ?? 0;
 
@@ -40,7 +42,7 @@ export default function PaymentFormModal({ studentId, onClose, defaultAmount, cl
 
   function register(): Payment | null {
     if (!amount || amount <= 0) {
-      alert('Ingresá un monto mayor a 0.');
+      void dialog.alert('Ingresá un monto mayor a 0.');
       return null;
     }
     return addPayment({ studentId, amount, methodId, date, concept: concept.trim() || undefined, kind: 'clase', classRef });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { addDays, dayKey, startOfWeek } from '../lib/date';
 import { classDuration } from '../lib/classMeta';
 import { findOverlapStart } from '../lib/time';
@@ -25,6 +26,7 @@ function isoToDate(iso: string): Date {
 /** Copia todas las clases de la semana actual a otra semana elegida. */
 export default function CopyWeekModal({ fromMonday, onClose }: CopyWeekModalProps) {
   const { data, copyWeek } = useAgenda();
+  const dialog = useDialog();
   // Por defecto, la semana siguiente.
   const [targetISO, setTargetISO] = useState(() => dateToISO(addDays(fromMonday, 7)));
 
@@ -47,7 +49,7 @@ export default function CopyWeekModal({ fromMonday, onClose }: CopyWeekModalProp
     const res = copyWeek(fromMonday, toMonday);
     let msg = `Se copiaron ${res.copied} clases.`;
     if (res.skipped > 0) msg += ` Se omitieron ${res.skipped} porque el destino ya tenía clase en esa franja.`;
-    alert(msg);
+    void dialog.alert(msg);
     onClose();
   }
 

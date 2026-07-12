@@ -32,6 +32,7 @@ import RemindersPanel from './components/RemindersPanel';
 import FabMenu from './components/FabMenu';
 import Confetti from './components/Confetti';
 import { useReminders } from './hooks/useReminders';
+import { DialogProvider } from './state/DialogContext';
 import { useAgenda } from './state/AgendaContext';
 import { dayKey, startOfWeek } from './lib/date';
 import { loadUiState, saveUiState } from './lib/uiState';
@@ -275,7 +276,10 @@ function Root() {
 export default function App() {
   return (
     <AuthProvider>
-      <Root />
+      {/* Avisos/confirmaciones propios (reemplazan los alert()/confirm() del navegador). */}
+      <DialogProvider>
+        <Root />
+      </DialogProvider>
     </AuthProvider>
   );
 }

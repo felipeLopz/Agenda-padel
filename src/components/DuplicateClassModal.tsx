@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { classNames } from '../lib/students';
@@ -25,6 +26,7 @@ function isoToDayKey(iso: string): string {
 /** Duplica una clase a otra franja (copia alumnos, precio, descuentos, etc.). */
 export default function DuplicateClassModal({ from, onClose }: DuplicateClassModalProps) {
   const { data, duplicateClass } = useAgenda();
+  const dialog = useDialog();
   const entry = data.days[from.day]?.[String(from.start)];
   const [iso, setIso] = useState(() => dayToISO(from.day));
   const [start, setStart] = useState(from.start);
@@ -50,7 +52,7 @@ export default function DuplicateClassModal({ from, onClose }: DuplicateClassMod
         conflict != null && conflictEntry
           ? `${minutesToLabel(conflict)}–${minutesToLabel(conflict + classDuration(conflictEntry))}`
           : 'otra clase';
-      alert(
+      void dialog.alert(
         `No se puede duplicar ahí: se solapa con ${conflictLabel}.` +
           (suggestion != null ? ` Probá desde las ${minutesToLabel(suggestion)}.` : '')
       );

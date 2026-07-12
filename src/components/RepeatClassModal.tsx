@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
+import { useDialog } from '../state/DialogContext';
 import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { classNames } from '../lib/students';
@@ -22,6 +23,7 @@ interface RepeatClassModalProps {
  */
 export default function RepeatClassModal({ day, start, onClose }: RepeatClassModalProps) {
   const { data, makeSeriesFromClass } = useAgenda();
+  const dialog = useDialog();
   const entry = data.days[day]?.[String(start)];
   // Recurrencia por defecto (igual que en el alta): cada 1 semana, 4 clases.
   const [recurrence, setRecurrence] = useState<RecurrenceInput>({ everyWeeks: 1, end: { type: 'count', count: 4 } });
@@ -38,7 +40,7 @@ export default function RepeatClassModal({ day, start, onClose }: RepeatClassMod
     const res = makeSeriesFromClass(day, start, recurrence);
     if (res.created === 0) {
       // Todas las fechas elegidas se solapan con turnos existentes, o se eligió una sola.
-      alert(
+      void dialog.alert(
         'No se creó ninguna repetición: las fechas elegidas se solapan con turnos existentes, o elegiste una sola clase. Probá otra cantidad o revisá los horarios.'
       );
       return;
@@ -47,7 +49,7 @@ export default function RepeatClassModal({ day, start, onClose }: RepeatClassMod
     if (res.skipped > 0) {
       msg += ` Se omitieron ${res.skipped} porque se solapaban con otra clase (esas no se crearon).`;
     }
-    alert(msg);
+    void dialog.alert(msg);
     onClose();
   }
 
