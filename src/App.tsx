@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './state/AuthContext';
 import AuthScreen from './components/AuthScreen';
 import { STORAGE_KEY } from './lib/constants';
 import Header, { type ViewMode } from './components/Header';
+import TodayView from './components/TodayView';
 import AnnualView from './components/AnnualView';
 import WeeklyView from './components/WeeklyView';
 import StudentsView from './components/StudentsView';
@@ -33,20 +34,25 @@ import Confetti from './components/Confetti';
 import { useReminders } from './hooks/useReminders';
 import { useAgenda } from './state/AgendaContext';
 import { dayKey, startOfWeek } from './lib/date';
+import { loadUiState, saveUiState } from './lib/uiState';
 import type { ClassEntry, ClassFormTarget, Student } from './types';
 
 /** Orquesta qué vista y qué modal está abierto; el estado de datos vive en AgendaContext. */
 function AppShell() {
   const { initialLoading, data } = useAgenda();
   const { due, upcoming, dueCount } = useReminders();
-  const [view, setView] = useState<ViewMode>('anual');
+  // Vista inicial: la última usada en este dispositivo (restaurada al recargar) o "Hoy".
+  const [view, setView] = useState<ViewMode>(() => loadUiState().view ?? 'hoy');
   const [reminderTarget, setReminderTarget] = useState<{ day: string; start: number } | null>(null);
   // Turno a convertir en serie recurrente (desde la agenda del día o la edición).
   const [repeatTarget, setRepeatTarget] = useState<{ day: string; start: number } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [newStudentOpen, setNewStudentOpen] = useState(false);
-  const [year, setYear] = useState(() => new Date().getFullYear());
-  const [weekAnchor, setWeekAnchor] = useState(() => new Date());
+  const [year, setYear] = useState(() => loadUiState().year ?? new Date().getFullYear());
+  const [weekAnchor, setWeekAnchor] = useState(() => {
+    const ms = loadUiState().weekAnchorMs;
+    return ms ? new Date(ms) : new Date();
+  });
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [formTarget, setFormTarget] = useState<ClassFormTarget | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -69,6 +75,11 @@ function AppShell() {
     setFormTarget({ day, start, entry });
   }
 
+  // Recuerda en el dispositivo la vista y el período abiertos, para restaurarlos al recargar.
+  useEffect(() => {
+    saveUiState({ view, year, weekAnchorMs: weekAnchor.getTime() });
+  }, [view, year, weekAnchor]);
+
   return (
     <div className="app">
       <Header
@@ -90,6 +101,9 @@ function AppShell() {
         ) : (
           // `key={view}` remonta el contenido al cambiar de pestaña → transición suave.
           <div className="view-anim" key={view}>
+            {view === 'hoy' && (
+              <TodayView onOpenClass={(start, entry) => openEditClass(dayKey(new Date()), start, entry)} />
+            )}
             {view === 'anual' && <AnnualView year={year} onOpenDay={setOpenDay} />}
             {view === 'semanal' && (
               <WeeklyView

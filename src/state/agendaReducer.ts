@@ -26,6 +26,7 @@ export type AgendaAction =
   | { type: 'RELOCATE_CLASS'; payload: { day: string; fromStart: number; toStart: number; entry: ClassEntry } }
   | { type: 'DELETE_CLASS'; payload: { day: string; start: number } }
   | { type: 'REMOVE_PARTICIPANT'; payload: { day: string; start: number; index: number } }
+  | { type: 'SET_ATTENDANCE'; payload: { day: string; start: number; index: number; attended: boolean | undefined } }
   | { type: 'SET_REMINDER'; payload: { day: string; start: number; reminder: Reminder | null } }
   | { type: 'ADD_CLASSES'; payload: { entries: PlacedClass[] } }
   | { type: 'MOVE_CLASS'; payload: { from: { day: string; start: number }; to: { day: string; start: number } } }
@@ -106,6 +107,24 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
         }
       }
       return { ...state, days, payments };
+    }
+
+    case 'SET_ATTENDANCE': {
+      // Marca la asistencia de UN alumno del turno (vino / no vino / sin marcar). Es solo un
+      // registro: NO toca precio, pagos ni estado, así que la plata queda EXACTAMENTE igual.
+      const { day, start, index, attended } = action.payload;
+      const slots = state.days[day];
+      const entry = slots?.[String(start)];
+      if (!entry || !entry.participants[index]) return state;
+      const nextParticipants = entry.participants.map((p, i) => {
+        if (i !== index) return p;
+        const np = { ...p };
+        if (attended === undefined) delete np.attended;
+        else np.attended = attended;
+        return np;
+      });
+      const nextEntry: ClassEntry = { ...entry, participants: nextParticipants };
+      return { ...state, days: { ...state.days, [day]: { ...slots, [String(start)]: nextEntry } } };
     }
 
     case 'SET_REMINDER': {

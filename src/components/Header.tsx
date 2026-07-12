@@ -1,7 +1,7 @@
 import { useAgenda } from '../state/AgendaContext';
 import { useAuth } from '../state/AuthContext';
 
-export type ViewMode = 'anual' | 'semanal' | 'alumnos' | 'caja' | 'stats';
+export type ViewMode = 'hoy' | 'anual' | 'semanal' | 'alumnos' | 'caja' | 'stats';
 
 /** Nombre "lindo" a partir del email (primer token de letras), o vacío si no se puede. */
 function nameFromEmail(email?: string | null): string {
@@ -57,6 +57,12 @@ export default function Header({
       </div>
 
       <div className="app-header__tabs">
+        <button
+          className={`tab${view === 'hoy' ? ' tab--active' : ''}`}
+          onClick={() => onChangeView('hoy')}
+        >
+          Hoy
+        </button>
         <button
           className={`tab${view === 'anual' ? ' tab--active' : ''}`}
           onClick={() => onChangeView('anual')}

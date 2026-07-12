@@ -73,6 +73,11 @@ interface AgendaContextValue {
   removeParticipant: (day: string, start: number, index: number) => void;
   /** Pone/edita/borra el recordatorio de un turno (null = borrar). */
   setReminder: (day: string, start: number, reminder: Reminder | null) => void;
+  /**
+   * Marca la asistencia de un alumno del turno: `true` = vino, `false` = no vino,
+   * `undefined` = sin marcar. Es SOLO un registro: no cambia precio, pagos ni deuda.
+   */
+  setAttendance: (day: string, start: number, index: number, attended: boolean | undefined) => void;
   upsertStudent: (student: Student) => void;
   setStudentActive: (id: string, active: boolean) => void;
   /** Registra un pago y devuelve el registro creado (para el recibo). */
@@ -363,6 +368,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
       setReminder: (day, start, reminder) =>
         dispatch({ type: 'SET_REMINDER', payload: { day, start, reminder } }),
+      setAttendance: (day, start, index, attended) =>
+        dispatch({ type: 'SET_ATTENDANCE', payload: { day, start, index, attended } }),
       upsertStudent: (student) => dispatch({ type: 'UPSERT_STUDENT', payload: student }),
       setStudentActive: (id, active) => {
         capture(active ? 'Alumno reactivado' : 'Alumno archivado');

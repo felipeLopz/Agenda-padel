@@ -7,6 +7,9 @@
 // v10 (Agenda de tiempo real): la clave de cada clase dentro del día pasa de la HORA
 //   ENTERA (7..16) a los MINUTOS de inicio desde la medianoche (7 → 420, 9:30 → 570).
 //   Los pagos referencian la clase por `{ day, start }` (antes `{ day, hour }`).
+// v11 (Asistencia): cada participante puede tener `attended` (true/false). Es solo un
+//   registro de asistencia, NO afecta la plata. Campo opcional: se conserva si viene,
+//   y los datos viejos quedan idénticos (sin marcar).
 //
 // `normalizeData` (en storage.ts) corre al cargar el localStorage y al importar
 // cualquier JSON. La cadena es: normalizeToV2 (maneja v1/v2/v3) → migrateV2toV3.
@@ -317,6 +320,8 @@ function normalizeToV2(raw: unknown): V2Intermediate {
                 name,
                 discount: parseDiscount(part.discount),
                 price: typeof part.price === 'number' && part.price >= 0 ? part.price : undefined,
+                // Asistencia (v11): se conserva tal cual (true/false); ausente = sin marcar.
+                attended: typeof part.attended === 'boolean' ? part.attended : undefined,
               };
             })
             .filter((p): p is ClassParticipant => p !== null);

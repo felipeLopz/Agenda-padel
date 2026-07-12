@@ -3688,3 +3688,166 @@ textarea:focus {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* -------------------------------------------------------------------------
+   Pantalla "Hoy" (uso diario del profe; botones grandes para el celular)
+   ------------------------------------------------------------------------- */
+.today-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.today-view__title {
+  font-size: 18px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+.today-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.today-card {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+.today-card--pagada {
+  border-left-color: var(--green);
+}
+.today-card--parcial {
+  border-left-color: var(--amber);
+}
+.today-card--impaga {
+  border-left-color: var(--danger);
+}
+.today-card--cancelada {
+  opacity: 0.6;
+}
+/* El próximo turno, destacado. */
+.today-card--next {
+  box-shadow: 0 0 0 2px var(--blue);
+}
+
+.today-card__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.today-card__head:hover {
+  background: var(--bg-card-hover);
+}
+.today-card__time {
+  font-size: 18px;
+  font-weight: 800;
+}
+.today-card__next-tag {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--blue);
+  background: rgba(47, 107, 255, 0.16);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.today-card__open {
+  margin-left: auto;
+  font-size: 22px;
+  color: var(--muted);
+}
+
+.today-card__students {
+  display: flex;
+  flex-direction: column;
+  padding: 0 14px 8px;
+}
+.today-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.today-line__name {
+  font-weight: 600;
+}
+.today-line__debt {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger);
+  background: rgba(255, 92, 108, 0.14);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+/* La asistencia se va a la derecha en la fila de Hoy. */
+.today-line .attendance {
+  margin-left: auto;
+}
+
+.today-card__actions {
+  padding: 0 14px 12px;
+}
+.today-card__collect {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+}
+
+.today-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+}
+.today-empty__emoji {
+  font-size: 40px;
+}
+
+/* -------------------------------------------------------------------------
+   Asistencia rápida (vino ✓ / no vino ✗) — botones chicos de un toque
+   ------------------------------------------------------------------------- */
+.attendance {
+  display: inline-flex;
+  gap: 4px;
+}
+.attendance__btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-elevated);
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.attendance__btn--yes.attendance__btn--on {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+.attendance__btn--no.attendance__btn--on {
+  background: rgba(255, 92, 108, 0.16);
+  border-color: var(--danger);
+  color: var(--danger);
+}

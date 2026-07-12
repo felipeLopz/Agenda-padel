@@ -118,6 +118,12 @@ export interface ClassParticipant {
    * datos viejos: la migración le asigna su prorrateo (precio ÷ cantidad).
    */
   price?: number;
+  /**
+   * Asistencia del alumno a esta clase (v11): `true` = vino, `false` = no vino,
+   * `undefined` = sin marcar. Es SOLO un registro: NO afecta la plata ni la deuda (la
+   * ausencia se cobra igual). Distinto del estado 'cancelada' de la clase, que sí saca plata.
+   */
+  attended?: boolean;
 }
 
 /** Estado de una clase en la agenda (distinto del estado de cobro, que se deriva). */

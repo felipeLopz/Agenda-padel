@@ -17,6 +17,7 @@ import {
 import { classRangeLabel, computeDayOverlaps, minutesToLabel } from '../lib/time';
 import { holidayName } from '../lib/holidays';
 import { useExitAnim } from '../hooks/useExitAnim';
+import AttendanceToggle from './AttendanceToggle';
 import type { ClassEntry } from '../types';
 
 interface DayAgendaModalProps {
@@ -47,7 +48,8 @@ export default function DayAgendaModal({
   onRepeat,
   onBlockDay,
 }: DayAgendaModalProps) {
-  const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant } = useAgenda();
+  const { data, ledger, deleteClass, deleteSeries, quickCollectClass, undoCollectClass, removeParticipant, setAttendance } =
+    useAgenda();
   const { isExiting, removeWithAnim } = useExitAnim();
   const date = parseDayKey(day);
   const slots = data.days[day];
@@ -208,6 +210,8 @@ export default function DayAgendaModal({
                       Pago
                     </button>
                   )}
+                  {/* Asistencia (vino / no vino). Solo registro: no toca la plata. */}
+                  <AttendanceToggle attended={p.attended} onChange={(a) => setAttendance(day, start, idx, a)} />
                   <button
                     className="student-line__remove"
                     onClick={() => {
