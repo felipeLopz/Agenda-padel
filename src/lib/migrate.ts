@@ -12,6 +12,11 @@
 //   y los datos viejos quedan idénticos (sin marcar).
 // v12 (Plantillas de turno): se agrega `templates` (turnos guardados con nombre para reusar).
 //   Aditivo y opcional: los datos viejos quedan idénticos (templates = {}). No tocan la plata.
+// v13 (Reparación de horas corruptas): un bug histórico dejó clases guardadas con el inicio
+//   multiplicado por 60 de más (ej: 8:00 → 480 min → 28800). Como el inicio SIEMPRE está en
+//   0..1439 minutos, cualquier clave >= 1440 es imposible y se repara dividiendo por 60 hasta
+//   volver al rango (28800 → 480 = 8:00). Se re-apuntan los pagos (classRef) al valor reparado,
+//   así NO se pierde la plata. Es idempotente: las horas válidas no se tocan (ver repairTimeKeys).
 //
 // `normalizeData` (en storage.ts) corre al cargar el localStorage y al importar
 // cualquier JSON. La cadena es: normalizeToV2 (maneja v1/v2/v3) → migrateV2toV3.
@@ -552,12 +557,15 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
     }
   }
 
+  // Reparación de horas corruptas (v13): sana claves imposibles (>= 1440 min) sin perder plata.
+  const healed = repairTimeKeys(days, payments);
+
   return {
     version: DATA_VERSION,
     prices: v2.prices,
-    days,
+    days: healed.days,
     students: v2.students,
-    payments,
+    payments: healed.payments,
     packs,
     expenses,
     paymentMethods,
@@ -565,6 +573,71 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
     blocks,
     templates: normalizeTemplates(src.templates, v2.students),
   };
+}
+
+/** Minutos válidos en un día: 0..1439. Cualquier clave de inicio >= 1440 es imposible. */
+const DAY_MIN = 24 * 60;
+
+/**
+ * Repara un inicio "imposible": si es >= 1440, se divide por 60 hasta volver al rango
+ * (ej: 28800 → 480 = 8:00; un triple ×60 → dos divisiones). Deja el resultado en 0..1439.
+ * Idempotente: un inicio válido (0..1439) se devuelve igual.
+ */
+function repairStartKey(k: number): number {
+  let v = Math.round(k);
+  let guard = 0;
+  while (v >= DAY_MIN && guard++ < 8) v = Math.round(v / 60);
+  return Math.max(0, Math.min(DAY_MIN - 1, v));
+}
+
+/**
+ * Sana las claves de hora corruptas de todas las clases y re-apunta los pagos a la hora
+ * reparada (para no romper el vínculo ni la plata). Las clases con hora válida se conservan
+ * tal cual; solo se mueven las corruptas. Si al reparar chocan con una clase válida, la
+ * corrupta se corre al minuto libre siguiente (nunca se pisa ni se pierde una clase). Es
+ * idempotente: sobre datos sanos no cambia nada.
+ */
+function repairTimeKeys(
+  days: AgendaData['days'],
+  payments: Record<string, Payment>
+): { days: AgendaData['days']; payments: Record<string, Payment> } {
+  // Remap "día|inicioViejo" -> inicioNuevo, para arreglar los classRef de los pagos.
+  const remap: Record<string, number> = {};
+  const newDays: AgendaData['days'] = {};
+  for (const [day, slots] of Object.entries(days)) {
+    const clean: AgendaData['days'][string] = {};
+    const items = Object.entries(slots)
+      .map(([k, e]) => ({ k: Number(k), e }))
+      .sort((a, b) => a.k - b.k);
+    // 1) Las válidas (0..1439) conservan su lugar.
+    for (const { k, e } of items) {
+      if (Number.isFinite(k) && k >= 0 && k < DAY_MIN) {
+        clean[String(k)] = e;
+        remap[`${day}|${k}`] = k;
+      }
+    }
+    // 2) Las corruptas se reparan; si el destino ya está ocupado, se corren al minuto libre.
+    for (const { k, e } of items) {
+      if (Number.isFinite(k) && k >= 0 && k < DAY_MIN) continue;
+      let target = repairStartKey(k);
+      while (target < DAY_MIN - 1 && clean[String(target)]) target += 1;
+      clean[String(target)] = e;
+      remap[`${day}|${k}`] = target;
+    }
+    newDays[day] = clean;
+  }
+  // Re-apuntar los classRef de los pagos según el remap (o reparar el start suelto por las dudas).
+  const newPayments: Record<string, Payment> = {};
+  for (const [id, p] of Object.entries(payments)) {
+    if (p.classRef) {
+      const mapped = remap[`${p.classRef.day}|${p.classRef.start}`];
+      const start = mapped !== undefined ? mapped : repairStartKey(p.classRef.start);
+      newPayments[id] = start === p.classRef.start ? p : { ...p, classRef: { day: p.classRef.day, start } };
+    } else {
+      newPayments[id] = p;
+    }
+  }
+  return { days: newDays, payments: newPayments };
 }
 
 /** Sanea las plantillas de turno (v12): tipo, alumnos, precio, duración y contenido. */

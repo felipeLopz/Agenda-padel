@@ -58,6 +58,9 @@ export default function WeeklyView({
     if (slots) {
       for (const [startStr, entry] of Object.entries(slots)) {
         const st = Number(startStr);
+        // Defensa: una hora imposible (fuera de 0..1439) NO debe agrandar la grilla. La
+        // reparación (lib/migrate) ya sana estos datos, pero por si acaso no inflamos filas.
+        if (!Number.isFinite(st) || st < 0 || st >= 24 * 60) continue;
         minMin = Math.min(minMin, st);
         maxMin = Math.max(maxMin, st + classDuration(entry));
       }
@@ -70,6 +73,9 @@ export default function WeeklyView({
       }
     }
   }
+  // El rango de la grilla nunca sale de un día real (0 a 24 h): así no aparecen "horas 480".
+  minMin = Math.max(0, minMin);
+  maxMin = Math.min(24 * 60, maxMin);
   const gridStartMin = Math.floor(minMin / 60) * 60;
   const gridEndMin = Math.ceil(maxMin / 60) * 60;
   const totalPx = (gridEndMin - gridStartMin) * PX_PER_MIN;
@@ -221,6 +227,8 @@ export default function WeeklyView({
 
                 {entries.map(([startStr, entry]) => {
                   const start = Number(startStr);
+                  // Defensa: no dibujar una clase con hora imposible en una posición absurda.
+                  if (!Number.isFinite(start) || start < 0 || start >= 24 * 60) return null;
                   const dur = classDuration(entry);
                   const state = classState(entry);
                   const status = classStatus(ledger, key, start);

@@ -32,14 +32,28 @@ function currentMinutes(): number {
 export default function TodayView({ onOpenClass, onNewClass }: TodayViewProps) {
   const { data, ledger, quickCollectClass, setAttendance } = useAgenda();
   const [cashOpen, setCashOpen] = useState(false);
-  // Se refresca cada minuto para que el "próximo turno" se vaya moviendo solo.
+  // `today` es un ESTADO (no se recalcula solo en cada render): se refresca por intervalo y,
+  // sobre todo, al volver a la app (visibilitychange/focus). Así, si la PWA quedó abierta o en
+  // segundo plano cuando cambió el día (medianoche), "Hoy" no queda pegado a la fecha de ayer.
   const [nowMin, setNowMin] = useState(() => currentMinutes());
+  const [today, setToday] = useState(() => dayKey(new Date()));
   useEffect(() => {
-    const id = window.setInterval(() => setNowMin(currentMinutes()), 60000);
-    return () => window.clearInterval(id);
+    const refresh = () => {
+      setNowMin(currentMinutes());
+      setToday(dayKey(new Date())); // si cambió el día, se actualiza; si no, React no re-renderiza
+    };
+    const id = window.setInterval(refresh, 30000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
-
-  const today = dayKey(new Date());
   const classes = dayEntries(data.days[today]); // ya ordenadas por hora de inicio
   // Próximo turno: el primero (no cancelado) que todavía no terminó (en curso o por venir).
   const nextStart = classes.find((c) => isChargeable(c.entry) && c.start + classDuration(c.entry) > nowMin)?.start;
