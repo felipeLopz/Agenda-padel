@@ -21,6 +21,9 @@ export default function ExportReminder() {
   const days = daysSince(data.settings.lastExportAt);
   // Solo tiene sentido si hay datos que perder.
   const hasData = Object.keys(data.days).length > 0 || Object.keys(data.students).length > 0;
+  // Regla: avisar SOLO si pasaron 7 días o más desde la última exportación (o si nunca se
+  // exportó → days = Infinity). Si exportó hace menos de 7 días, no molesta. Al exportar,
+  // `lastExportAt` pasa a hoy → days ≈ 0 → este banner se apaga al instante.
   if (dismissed || !hasData || days < BACKUP_REMINDER_DAYS) return null;
 
   const never = !data.settings.lastExportAt;

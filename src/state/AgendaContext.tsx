@@ -670,9 +670,12 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       dismissUndo: () => setUndoState(null),
 
       exportData: () => {
-        exportToFile(data);
-        // Registra la fecha del backup para el recordatorio.
+        // Se registra la fecha del backup PRIMERO (reusa el campo `lastExportAt` de siempre), así
+        // el aviso de respaldo se apaga al instante al exportar y NO vuelve hasta que pasen otros
+        // 7 días. Se hace antes de la descarga para que la fecha quede guardada aunque la descarga
+        // falle en algún navegador (celular/PWA). No se toca la exportación en sí.
         dispatch({ type: 'SET_SETTINGS', payload: { ...data.settings, lastExportAt: new Date().toISOString() } });
+        exportToFile(data);
       },
       importData: async (file: File) => {
         const imported = await importFromFile(file);
