@@ -18,6 +18,7 @@ import AttachmentsEditor from './AttachmentsEditor';
 import NumberInput from './NumberInput';
 import AmountButtons from './AmountButtons';
 import TimeField from './TimeField';
+import PaymentToggle from './PaymentToggle';
 import RecurrenceFields from './RecurrenceFields';
 
 /** Campos que se pueden prellenar desde el turno anterior o desde una plantilla. */
@@ -368,6 +369,14 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
                     onChange={(d) => updateParticipant(idx, { ...p, discount: d })}
                     hint="solo esta clase"
                   />
+                )}
+                {/* Cobro por alumno: "Pagado: Sí / No" (solo en turnos ya guardados). Mismo
+                    componente y misma plata que en Hoy y en la agenda del día. */}
+                {entry && p.studentId && (
+                  <div className="participant-block__pay">
+                    <span className="participant-block__pay-label">¿Pagó?</span>
+                    <PaymentToggle day={day} start={initialStart} studentId={p.studentId} />
+                  </div>
                 )}
               </div>
             ))}

@@ -19,6 +19,7 @@ import { holidayName } from '../lib/holidays';
 import { useExitAnim } from '../hooks/useExitAnim';
 import { useDialog } from '../state/DialogContext';
 import AttendanceToggle from './AttendanceToggle';
+import PaymentToggle from './PaymentToggle';
 import type { ClassEntry } from '../types';
 
 interface DayAgendaModalProps {
@@ -56,8 +57,6 @@ export default function DayAgendaModal({
     deleteSeries,
     quickCollectClass,
     undoCollectClass,
-    collectClassStudent,
-    undoCollectClassStudent,
     removeParticipant,
     setAttendance,
   } = useAgenda();
@@ -238,41 +237,9 @@ export default function DayAgendaModal({
                       −{describeDiscount(bd.oneTimeDiscount)} puntual
                     </span>
                   )}
-                  {/* Cubierto por un pack prepago: ya está pago, no se marca Sí/No. */}
-                  {coveredByPack && <span className="disc-tag disc-tag--pack">pagado con pack</span>}
-                  {/* Botones claros "Pagado: Sí / No" (grupal e individual, igual). Reutilizan el
-                      cobro y la deuda que YA existen, sin duplicar ni recalcular:
-                       - "Sí": si todavía no está pago, registra el pago de SU parte con fecha de hoy
-                         (collectClassStudent → mismo owed−pagado del ledger).
-                       - "No": lo deja debiendo esa parte (undoCollectClassStudent borra su pago de
-                         esta clase). La deuda es la MISMA que se ve en ficha, ranking y caja. */}
-                  {canToggle && (
-                    <div className="pay-toggle" role="group" aria-label="¿Pagó este alumno?">
-                      <button
-                        type="button"
-                        className={`pay-toggle__btn pay-toggle__btn--yes${paid ? ' is-on' : ''}`}
-                        aria-pressed={paid}
-                        onClick={() => {
-                          // Idempotente: si ya está pago, no hace nada (no duplica el pago).
-                          if (!paid) collectClassStudent(day, start, p.studentId as string);
-                        }}
-                      >
-                        Pagado: Sí
-                      </button>
-                      <button
-                        type="button"
-                        className={`pay-toggle__btn pay-toggle__btn--no${!paid ? ' is-on' : ''}`}
-                        aria-pressed={!paid}
-                        onClick={() => {
-                          // Cambiar de opinión: borra el pago de esta clase (no queda colgado) y
-                          // el alumno vuelve a deber su parte. Si ya debía, no hace nada.
-                          if (paid) undoCollectClassStudent(day, start, p.studentId as string);
-                        }}
-                      >
-                        Pagado: No
-                      </button>
-                    </div>
-                  )}
+                  {/* Botones "Pagado: Sí / No" por alumno (componente reutilizado en todas las
+                      vistas donde se abre un turno). Maneja solo/pack/estado internamente. */}
+                  <PaymentToggle day={day} start={start} studentId={p.studentId} />
                   {/* Pago con importe/medio/fecha a elección (parcial o distinto), si todavía debe. */}
                   {canToggle && !paid && (
                     <button

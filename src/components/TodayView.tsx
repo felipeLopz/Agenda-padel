@@ -8,6 +8,7 @@ import { classDuration, classState, isChargeable, STATE_LABEL, stateMoneyNote } 
 import { freeHourSlots } from '../lib/schedule';
 import { classRangeLabel, minutesToLabel } from '../lib/time';
 import AttendanceToggle from './AttendanceToggle';
+import PaymentToggle from './PaymentToggle';
 import CashCloseModal from './CashCloseModal';
 import type { ClassEntry } from '../types';
 
@@ -178,6 +179,8 @@ export default function TodayView({ onOpenClass, onNewClass }: TodayViewProps) {
                           {formatCurrency(debt.amount)}
                         </span>
                       )}
+                      {/* Botones "Pagado: Sí / No" por alumno (mismo componente que en las otras vistas). */}
+                      <PaymentToggle day={today} start={start} studentId={p.studentId} />
                       {/* La asistencia es solo un registro: no cambia la plata. */}
                       <AttendanceToggle attended={p.attended} onChange={(a) => setAttendance(today, start, idx, a)} />
                     </div>

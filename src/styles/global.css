@@ -4170,6 +4170,19 @@ textarea:focus {
   border-radius: 9px;
   overflow: hidden;
 }
+/* Fila "¿Pagó? [Sí][No]" dentro del formulario de clase (por alumno). */
+.participant-block__pay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.participant-block__pay-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
 .pay-toggle__btn {
   border: none;
   background: var(--bg-elevated);
