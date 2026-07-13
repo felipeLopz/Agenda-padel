@@ -66,6 +66,7 @@ input[type='email'],
 input[type='password'],
 input[type='search'],
 input[type='date'],
+input[type='time'],
 input[type='datetime-local'],
 select,
 textarea {
@@ -85,11 +86,30 @@ input[type='email']:focus,
 input[type='password']:focus,
 input[type='search']:focus,
 input[type='date']:focus,
+input[type='time']:focus,
 input[type='datetime-local']:focus,
 select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--blue-light);
+}
+
+/* El texto interno de los campos de fecha/hora usa el color del tema (no quedar invisible),
+   y el iconito (calendario/reloj) se invierte en modo oscuro para que tenga buen contraste. */
+input[type='date']::-webkit-datetime-edit,
+input[type='time']::-webkit-datetime-edit,
+input[type='datetime-local']::-webkit-datetime-edit {
+  color: var(--ink);
+}
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='time']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+:root[data-theme='dark'] input[type='date']::-webkit-calendar-picker-indicator,
+:root[data-theme='dark'] input[type='time']::-webkit-calendar-picker-indicator,
+:root[data-theme='dark'] input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.6);
 }
 
 .app {
@@ -4120,4 +4140,24 @@ textarea:focus {
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Selector de hora propio (hora : minutos) — reemplaza al <input type="time"> nativo. */
+.time-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.time-field__select {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  /* Objetivo táctil cómodo en el celular. */
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+.time-field__sep {
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--muted);
 }

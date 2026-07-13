@@ -9,7 +9,7 @@ import { previousClass } from '../lib/schedule';
 import { participantName } from '../lib/students';
 import { formatCurrency } from '../lib/format';
 import { classDuration, classState, STATE_LABEL, STATES } from '../lib/classMeta';
-import { findOverlapStart, hhmmToMinutes, minutesToHHMM, minutesToLabel, nextFreeStart } from '../lib/time';
+import { findOverlapStart, minutesToLabel, nextFreeStart } from '../lib/time';
 import type { RecurrenceInput } from '../lib/recurrence';
 import type { Attachment, ClassEntry, ClassFormTarget, ClassParticipant, ClassState, ClassType } from '../types';
 import StudentPicker from './StudentPicker';
@@ -17,6 +17,7 @@ import DiscountEditor from './DiscountEditor';
 import AttachmentsEditor from './AttachmentsEditor';
 import NumberInput from './NumberInput';
 import AmountButtons from './AmountButtons';
+import TimeField from './TimeField';
 import RecurrenceFields from './RecurrenceFields';
 
 /** Campos que se pueden prellenar desde el turno anterior o desde una plantilla. */
@@ -381,15 +382,7 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
         <div className="class-form__row class-form__row--split">
           <div>
             <label>Hora de inicio</label>
-            <input
-              type="time"
-              step={900}
-              value={minutesToHHMM(start)}
-              onChange={(e) => {
-                const m = hhmmToMinutes(e.target.value);
-                if (m != null) setStart(m);
-              }}
-            />
+            <TimeField value={start} onChange={setStart} />
           </div>
           <div>
             <label>Duración</label>

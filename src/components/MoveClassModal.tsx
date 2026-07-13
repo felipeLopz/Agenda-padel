@@ -6,7 +6,8 @@ import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { classNames } from '../lib/students';
 import { classDuration } from '../lib/classMeta';
-import { findOverlapStart, hhmmToMinutes, minutesToHHMM, minutesToLabel, nextFreeStart } from '../lib/time';
+import { findOverlapStart, minutesToLabel, nextFreeStart } from '../lib/time';
+import TimeField from './TimeField';
 
 interface MoveClassModalProps {
   from: { day: string; start: number };
@@ -77,15 +78,7 @@ export default function MoveClassModal({ from, onClose }: MoveClassModalProps) {
           </div>
           <div>
             <label>Nueva hora</label>
-            <input
-              type="time"
-              step={900}
-              value={minutesToHHMM(start)}
-              onChange={(e) => {
-                const m = hhmmToMinutes(e.target.value);
-                if (m != null) setStart(m);
-              }}
-            />
+            <TimeField value={start} onChange={setStart} />
           </div>
         </div>
         <div className="class-form__actions">
