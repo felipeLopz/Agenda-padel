@@ -203,17 +203,13 @@ export default function DayAgendaModal({
               const part = p.studentId
                 ? ledger.byStudent[p.studentId]?.participations.find((pp) => pp.day === day && pp.start === start)
                 : undefined;
-              const pStatus = part?.status;
               const rowKey = `${start}-${idx}`;
-              // Cobro rápido por alumno: lo que le queda adeudado en ESTA clase (owed − pagado).
-              const remaining = part && !part.coveredByPack ? part.owed - part.paidToward : 0;
-              const canCollect = Boolean(p.studentId) && remaining > 0.0001;
-              // ¿Ya tiene algún pago atado a ESTA clase? (para poder revertir su cobro rápido).
-              const hasClassPay =
-                Boolean(p.studentId) &&
-                Object.values(data.payments).some(
-                  (pay) => pay.studentId === p.studentId && pay.classRef?.day === day && pay.classRef?.start === start
-                );
+              // Estado de cobro de ESTE alumno en ESTA clase, DERIVADO del ledger (una sola fuente
+              // de verdad, la deuda de siempre): "pagado" = su parte ya está saldada. Acá NO se
+              // recalcula ninguna plata: solo se lee para saber qué botón mostrar activo.
+              const coveredByPack = Boolean(part?.coveredByPack);
+              const paid = part?.status === 'pagada';
+              const canToggle = Boolean(p.studentId) && Boolean(part) && !coveredByPack;
               // Deuda total del alumno (para tenerla presente al atenderlo) y cumple del día.
               const debt = p.studentId ? studentDebt(ledger, p.studentId) : { amount: 0, classes: 0 };
               const birthday = student ? isBirthdayOn(student, day) : false;
@@ -242,36 +238,48 @@ export default function DayAgendaModal({
                       −{describeDiscount(bd.oneTimeDiscount)} puntual
                     </span>
                   )}
-                  {part?.coveredByPack && <span className="disc-tag disc-tag--pack">pack</span>}
-                  {pStatus && !part?.coveredByPack && (
-                    <span className={`chip chip--status-${pStatus} chip--mini`}>{STATUS_LABEL[pStatus]}</span>
+                  {/* Cubierto por un pack prepago: ya está pago, no se marca Sí/No. */}
+                  {coveredByPack && <span className="disc-tag disc-tag--pack">pagado con pack</span>}
+                  {/* Botones claros "Pagado: Sí / No" (grupal e individual, igual). Reutilizan el
+                      cobro y la deuda que YA existen, sin duplicar ni recalcular:
+                       - "Sí": si todavía no está pago, registra el pago de SU parte con fecha de hoy
+                         (collectClassStudent → mismo owed−pagado del ledger).
+                       - "No": lo deja debiendo esa parte (undoCollectClassStudent borra su pago de
+                         esta clase). La deuda es la MISMA que se ve en ficha, ranking y caja. */}
+                  {canToggle && (
+                    <div className="pay-toggle" role="group" aria-label="¿Pagó este alumno?">
+                      <button
+                        type="button"
+                        className={`pay-toggle__btn pay-toggle__btn--yes${paid ? ' is-on' : ''}`}
+                        aria-pressed={paid}
+                        onClick={() => {
+                          // Idempotente: si ya está pago, no hace nada (no duplica el pago).
+                          if (!paid) collectClassStudent(day, start, p.studentId as string);
+                        }}
+                      >
+                        Pagado: Sí
+                      </button>
+                      <button
+                        type="button"
+                        className={`pay-toggle__btn pay-toggle__btn--no${!paid ? ' is-on' : ''}`}
+                        aria-pressed={!paid}
+                        onClick={() => {
+                          // Cambiar de opinión: borra el pago de esta clase (no queda colgado) y
+                          // el alumno vuelve a deber su parte. Si ya debía, no hace nada.
+                          if (paid) undoCollectClassStudent(day, start, p.studentId as string);
+                        }}
+                      >
+                        Pagado: No
+                      </button>
+                    </div>
                   )}
-                  {/* Cobro rápido por alumno: registra el pago de lo que le queda (atajo del cobro). */}
-                  {canCollect && (
-                    <button
-                      className="btn btn--small btn--primary"
-                      onClick={() => collectClassStudent(day, start, p.studentId as string)}
-                    >
-                      💵 Cobrar {formatCurrency(remaining)}
-                    </button>
-                  )}
-                  {/* Pago con importe/medio/fecha a elección (para pagos parciales o distintos). */}
-                  {canCollect && (
+                  {/* Pago con importe/medio/fecha a elección (parcial o distinto), si todavía debe. */}
+                  {canToggle && !paid && (
                     <button
                       className="btn btn--tiny btn--ghost"
                       onClick={() => onRegisterPayment(p.studentId as string, { day, start })}
                     >
-                      Pago…
-                    </button>
-                  )}
-                  {/* Revertir el cobro de este alumno en esta clase (si me equivoqué). */}
-                  {hasClassPay && (
-                    <button
-                      className="btn btn--tiny btn--ghost"
-                      onClick={() => undoCollectClassStudent(day, start, p.studentId as string)}
-                      title="Revertir el cobro de este alumno en esta clase"
-                    >
-                      ↩ Revertir
+                      Otro monto…
                     </button>
                   )}
                   {/* Asistencia (vino / no vino). Solo registro: no toca la plata. */}
