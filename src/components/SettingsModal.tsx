@@ -158,7 +158,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         <div className="class-form__row">
-          <label>Avisar cuando al pack le queden ≤ estas clases</label>
+          <label>Avisar cuando al alumno le queden estas clases o menos del pack</label>
           <NumberInput min={0} value={packLow} onChange={setPackLow} />
         </div>
 
