@@ -22,7 +22,6 @@ import DuplicateClassModal from './components/DuplicateClassModal';
 import CopyWeekModal from './components/CopyWeekModal';
 import BlockDayModal from './components/BlockDayModal';
 import UndoToast from './components/UndoToast';
-import ExportReminder from './components/ExportReminder';
 import Skeletons from './components/Skeletons';
 import SyncCheck from './components/SyncCheck';
 import Spinner from './components/Spinner';
@@ -93,8 +92,6 @@ function AppShell() {
         reminderCount={dueCount}
         onOpenReminders={() => setRemindersOpen(true)}
       />
-
-      <ExportReminder />
 
       <main className="app__content">
         {initialLoading && Object.keys(data.days).length === 0 && Object.keys(data.students).length === 0 ? (

@@ -2636,24 +2636,6 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
-/* Banner de recordatorio de respaldo */
-.export-reminder {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  background: var(--amber-dim);
-  border-bottom: 1px solid var(--border);
-  color: var(--ink);
-  padding: 8px clamp(12px, 3vw, 32px);
-  font-size: 13px;
-}
-.export-reminder__actions {
-  display: flex;
-  gap: 8px;
-}
-
 /* Buscador general: secciones */
 .search-group {
   margin-top: 12px;

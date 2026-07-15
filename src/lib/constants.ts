@@ -90,6 +90,3 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   soundOnCollect: false,
 };
-
-/** Días desde la última exportación para recordar un backup. */
-export const BACKUP_REMINDER_DAYS = 7;
