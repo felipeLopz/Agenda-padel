@@ -57,8 +57,10 @@ export function buildReportCSV(data: AgendaData, ledger: Ledger, period: Period)
   rows.push(csvRow(['Pendiente', Math.round(st.totals.pending)]));
   rows.push(csvRow(['Facturación total', Math.round(st.totals.total)]));
   rows.push(csvRow(['Clases grupales', st.byTypeCount.grupal]));
+  rows.push(csvRow(['Clases dobles', st.byTypeCount.doble]));
   rows.push(csvRow(['Clases individuales', st.byTypeCount.indiv]));
   rows.push(csvRow(['Ingresos grupales', Math.round(st.incomeByType.grupal)]));
+  rows.push(csvRow(['Ingresos dobles', Math.round(st.incomeByType.doble)]));
   rows.push(csvRow(['Ingresos individuales', Math.round(st.incomeByType.indiv)]));
   rows.push(csvRow(['Promedio alumnos por grupal', st.avgGroupSize.toFixed(2)]));
   rows.push(csvRow(['Ocupación (franjas usadas)', st.occupancy.used]));
@@ -134,8 +136,11 @@ async function buildReportPDF(data: AgendaData, ledger: Ledger, period: Period):
   line('Cobrado', formatCurrency(st.totals.collected));
   line('Pendiente', formatCurrency(st.totals.pending));
   line('Facturación total', formatCurrency(st.totals.total));
-  line('Grupales / Individuales', `${st.byTypeCount.grupal} / ${st.byTypeCount.indiv}`);
-  line('Ingresos grupal / indiv', `${formatCurrency(st.incomeByType.grupal)} / ${formatCurrency(st.incomeByType.indiv)}`);
+  line('Grupales / Dobles / Indiv.', `${st.byTypeCount.grupal} / ${st.byTypeCount.doble} / ${st.byTypeCount.indiv}`);
+  line(
+    'Ingresos grup / dob / indiv',
+    `${formatCurrency(st.incomeByType.grupal)} / ${formatCurrency(st.incomeByType.doble)} / ${formatCurrency(st.incomeByType.indiv)}`
+  );
   line('Prom. alumnos por grupal', st.avgGroupSize.toFixed(2));
   line('Ocupación', `${st.occupancy.used}/${st.occupancy.available} franjas (${(st.occupancy.rate * 100).toFixed(1)}%)`);
 

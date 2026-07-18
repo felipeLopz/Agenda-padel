@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAgenda } from '../state/AgendaContext';
+import { CLASS_TYPE_LABEL } from '../lib/constants';
 import { dayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { dayEntries, classStatus, STATUS_LABEL, classKey, studentDebt } from '../lib/money';
@@ -142,9 +143,7 @@ export default function TodayView({ onOpenClass, onNewClass }: TodayViewProps) {
               <button className="today-card__head" onClick={() => onOpenClass(start, entry)}>
                 <span className="today-card__time">{classRangeLabel(start, entry)}</span>
                 {isNext && <span className="today-card__next-tag">Próximo</span>}
-                <span className={`badge badge--${entry.type}`}>
-                  {entry.type === 'grupal' ? 'Grupal' : 'Individual'}
-                </span>
+                <span className={`badge badge--${entry.type}`}>{CLASS_TYPE_LABEL[entry.type]}</span>
                 {state !== 'confirmada' && (
                   <span className={`chip chip--state-${state}`}>
                     {STATE_LABEL[state]}

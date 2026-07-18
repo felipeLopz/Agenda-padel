@@ -74,8 +74,8 @@ export function computeStats(data: AgendaData, ledger: Ledger, period: Period): 
   const totals = periodTotals(data, ledger, period);
 
   const settings = data.settings;
-  const byTypeCount: Record<ClassType, number> = { grupal: 0, indiv: 0 };
-  const incomeByType: Record<ClassType, number> = { grupal: 0, indiv: 0 };
+  const byTypeCount: Record<ClassType, number> = { grupal: 0, doble: 0, indiv: 0 };
+  const incomeByType: Record<ClassType, number> = { grupal: 0, doble: 0, indiv: 0 };
   // Contador por hora: se siembra con el horario configurado y se agregan las horas
   // con clase que caigan fuera de ese rango (para no esconder ninguna).
   const byHourMap = new Map<number, number>();
@@ -118,7 +118,7 @@ export function computeStats(data: AgendaData, ledger: Ledger, period: Period): 
     .map(([studentId, count]) => ({ studentId, count }))
     .sort((a, b) => b.count - a.count);
 
-  const used = byTypeCount.grupal + byTypeCount.indiv;
+  const used = byTypeCount.grupal + byTypeCount.doble + byTypeCount.indiv;
 
   // Franjas disponibles = días LABORALES del período × franjas por día − bloqueos.
   // Solo se descuentan bloqueos que caen en días laborales y dentro del horario.

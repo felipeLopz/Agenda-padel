@@ -2,12 +2,18 @@ import type { AgendaData, ClassType, Prices } from '../types';
 
 /**
  * Precio sugerido por defecto según el tipo de clase.
- * Grupal = precio por alumno × cantidad de alumnos. Individual = precio fijo por clase.
+ * Grupal/Doble = precio por alumno × cantidad de alumnos. Individual = precio fijo por clase.
  * Es solo un valor inicial: el importe final siempre se puede editar a mano.
  */
 export function suggestedPrice(type: ClassType, studentCount: number, prices: Prices): number {
   if (type === 'grupal') return prices.grupal * Math.max(studentCount, 1);
+  if (type === 'doble') return prices.doble * Math.max(studentCount, 1);
   return prices.indiv;
+}
+
+/** Precio por alumno por defecto de un tipo con precio por alumno (grupal/doble). */
+export function defaultStudentPrice(type: ClassType, prices: Prices): number {
+  return type === 'doble' ? prices.doble : prices.grupal;
 }
 
 /**
@@ -22,7 +28,7 @@ export function frequentAmounts(data: AgendaData): number[] {
     if (a > 0) counts.set(a, (counts.get(a) ?? 0) + 1);
   }
   const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a);
-  const seed = [data.prices.grupal, data.prices.indiv].filter((n) => n > 0);
+  const seed = [data.prices.grupal, data.prices.doble, data.prices.indiv].filter((n) => n > 0);
   const merged: number[] = [];
   for (const n of [...top, ...seed]) {
     if (n > 0 && !merged.includes(n)) merged.push(n);

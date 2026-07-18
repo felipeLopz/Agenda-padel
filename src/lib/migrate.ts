@@ -12,6 +12,9 @@
 //   y los datos viejos quedan idénticos (sin marcar).
 // v12 (Plantillas de turno): se agrega `templates` (turnos guardados con nombre para reusar).
 //   Aditivo y opcional: los datos viejos quedan idénticos (templates = {}). No tocan la plata.
+// v14 (Tipo Doble): se agrega el tipo de clase 'doble' (2 alumnos, precio propio por alumno) y
+//   el precio por defecto `prices.doble`. Aditivo: las clases viejas conservan su tipo
+//   (individual/grupal), no se convierten. El precio doble se completa con el default si falta.
 // v13 (Reparación de horas corruptas): un bug histórico dejó clases guardadas con el inicio
 //   multiplicado por 60 de más (ej: 8:00 → 480 min → 28800). Como el inicio SIEMPRE está en
 //   0..1439 minutos, cualquier clave >= 1440 es imposible y se repara dividiendo por 60 hasta
@@ -256,6 +259,8 @@ function normalizeToV2(raw: unknown): V2Intermediate {
 
   const prices: Prices = {
     grupal: Number(src.prices?.grupal) || DEFAULT_PRICES.grupal,
+    // Precio doble (v14): si no viene (datos viejos), se completa con el default.
+    doble: Number(src.prices?.doble) || DEFAULT_PRICES.doble,
     indiv: Number(src.prices?.indiv) || DEFAULT_PRICES.indiv,
   };
 
@@ -310,7 +315,10 @@ function normalizeToV2(raw: unknown): V2Intermediate {
           attachments?: unknown;
           reminder?: unknown;
         };
-        const type: ClassType = entry.type === 'indiv' ? 'indiv' : 'grupal';
+        // Se conserva el tipo tal cual (v14: 'doble' es válido). Cualquier valor desconocido
+        // cae a 'grupal'. Las clases viejas NO se convierten solas: mantienen su tipo.
+        const type: ClassType =
+          entry.type === 'indiv' ? 'indiv' : entry.type === 'doble' ? 'doble' : 'grupal';
 
         let participants: ClassParticipant[] = [];
 
@@ -340,13 +348,15 @@ function normalizeToV2(raw: unknown): V2Intermediate {
         }
 
         if (participants.length === 0) continue;
-        const finalParticipants = type === 'indiv' ? participants.slice(0, 1) : participants;
+        // Individual = 1 alumno; Doble = exactamente 2; Grupal = los que haya.
+        const finalParticipants =
+          type === 'indiv' ? participants.slice(0, 1) : type === 'doble' ? participants.slice(0, 2) : participants;
         const priceNum = Number(entry.price) || 0;
-        // v8: en grupal cada alumno lleva su precio propio. Si viene del formato viejo
-        // (precio total repartido), se le asigna su prorrateo actual (precio ÷ cantidad),
+        // v8/v14: en grupal y doble cada alumno lleva su precio propio. Si viene del formato
+        // viejo (precio total repartido), se le asigna su prorrateo actual (precio ÷ cantidad),
         // así los totales y la parte de cada alumno quedan idénticos tras migrar.
         const pricedParticipants =
-          type === 'grupal'
+          type === 'grupal' || type === 'doble'
             ? finalParticipants.map((p) => ({
                 ...p,
                 price: typeof p.price === 'number' ? p.price : priceNum / (finalParticipants.length || 1),
@@ -649,7 +659,7 @@ function normalizeTemplates(raw: unknown, students: Record<string, Student>): Re
     const t = rawT as Partial<ClassTemplate> & { participants?: unknown };
     const name = typeof t.name === 'string' ? t.name.trim() : '';
     if (!name) continue;
-    const type: ClassType = t.type === 'indiv' ? 'indiv' : 'grupal';
+    const type: ClassType = t.type === 'indiv' ? 'indiv' : t.type === 'doble' ? 'doble' : 'grupal';
     const participants = Array.isArray(t.participants)
       ? (t.participants as unknown[])
           .map((p): ClassParticipant | null => {

@@ -4,7 +4,7 @@ import { useAgenda } from '../state/AgendaContext';
 import { useDialog } from '../state/DialogContext';
 import { parseDayKey } from '../lib/date';
 import { WEEKDAY_NAMES_LONG, DURATION_OPTIONS, COMMON_TOPICS } from '../lib/constants';
-import { suggestedPrice, frequentAmounts } from '../lib/pricing';
+import { suggestedPrice, frequentAmounts, defaultStudentPrice } from '../lib/pricing';
 import { previousClass } from '../lib/schedule';
 import { participantName } from '../lib/students';
 import { formatCurrency } from '../lib/format';
@@ -117,13 +117,16 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
       void dialog.alert('Cargá al menos un alumno para guardar la plantilla.');
       return;
     }
-    const tParticipants = (type === 'indiv' ? valid.slice(0, 1) : valid).map((p) => ({
-      studentId: p.studentId,
-      name: p.studentId ? participantName(p, data.students) : p.name.trim(),
-      discount: p.discount,
-      price: type === 'grupal' ? (p.price ?? data.prices.grupal) : undefined,
-    }));
-    const tPrice = type === 'grupal' ? tParticipants.reduce((sum, p) => sum + (p.price ?? 0), 0) : Number(price) || 0;
+    const tParticipants = (type === 'indiv' ? valid.slice(0, 1) : type === 'doble' ? valid.slice(0, 2) : valid).map(
+      (p) => ({
+        studentId: p.studentId,
+        name: p.studentId ? participantName(p, data.students) : p.name.trim(),
+        discount: p.discount,
+        // Grupal y Doble: precio propio por alumno. Individual: sin precio por alumno.
+        price: type === 'indiv' ? undefined : (p.price ?? defaultStudentPrice(type, data.prices)),
+      })
+    );
+    const tPrice = type === 'indiv' ? Number(price) || 0 : tParticipants.reduce((sum, p) => sum + (p.price ?? 0), 0);
     saveTemplate({
       name,
       type,
@@ -143,11 +146,33 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
     if (priceTouched || nextType !== 'indiv') return;
     setPrice(suggestedPrice('indiv', 1, data.prices));
   }
-  function applyType(nextType: ClassType) {
-    setType(nextType);
-    const nextList = nextType === 'indiv' ? [participants[0] ?? emptyParticipant()] : participants;
-    setParticipants(nextList);
-    suggestIndivPrice(nextType);
+  async function applyType(nextType: ClassType) {
+    if (nextType === type) return;
+    if (nextType === 'doble') {
+      // Doble = EXACTAMENTE 2 alumnos. Si ya hay más de 2 cargados, se avisa antes de recortar
+      // (no se pierde ninguna ficha; solo se quitan de este formulario). Si cancela, no cambia.
+      const withData = participants.filter((p) => p.studentId || p.name.trim());
+      if (withData.length > 2) {
+        const ok = await dialog.confirm(
+          'La clase Doble es de exactamente 2 alumnos. ¿Dejar los primeros 2? Los demás solo se quitan de este formulario (no se borra ninguna ficha).',
+          { confirmLabel: 'Dejar 2', cancelLabel: 'No cambiar' }
+        );
+        if (!ok) return;
+      }
+      const kept = participants.slice(0, 2);
+      while (kept.length < 2) kept.push({ studentId: null, name: '', price: data.prices.doble });
+      setParticipants(kept);
+      setType('doble');
+      return;
+    }
+    if (nextType === 'indiv') {
+      setParticipants([participants[0] ?? emptyParticipant()]);
+      setType('indiv');
+      suggestIndivPrice('indiv');
+      return;
+    }
+    // Grupal: se conservan todos los alumnos que haya.
+    setType('grupal');
   }
   function updateParticipant(idx: number, p: ClassParticipant) {
     setParticipants(participants.map((cur, i) => (i === idx ? p : cur)));
@@ -196,6 +221,12 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
       return;
     }
 
+    // Doble = exactamente 2 alumnos: no se guarda con menos.
+    if (type === 'doble' && valid.length < 2) {
+      void dialog.alert('La clase Doble necesita 2 alumnos. Cargá el segundo, o cambiá a Individual o Grupal.');
+      return;
+    }
+
     // Solapamiento DURO: si la clase (por su duración) se pisa con otra del mismo día, NO
     // se permite guardar. Se sugiere el próximo horario libre. Las canceladas no ocupan
     // horario, así que no chequean. Al editar, se excluye su propia franja actual.
@@ -217,16 +248,16 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
         return;
       }
     }
-    const finalList = (type === 'indiv' ? valid.slice(0, 1) : valid).map((p) => ({
+    const finalList = (type === 'indiv' ? valid.slice(0, 1) : type === 'doble' ? valid.slice(0, 2) : valid).map((p) => ({
       studentId: p.studentId,
       name: p.studentId ? participantName(p, data.students) : p.name.trim(),
       discount: p.discount,
-      // Grupal: cada alumno guarda su precio propio. Individual: sin precio por alumno.
-      price: type === 'grupal' ? (p.price ?? data.prices.grupal) : undefined,
+      // Grupal y Doble: cada alumno guarda su precio propio. Individual: sin precio por alumno.
+      price: type === 'indiv' ? undefined : (p.price ?? defaultStudentPrice(type, data.prices)),
     }));
-    // El total de la clase es la suma de los alumnos (grupal) o el importe único (indiv).
+    // El total de la clase es la suma de los alumnos (grupal/doble) o el importe único (indiv).
     const totalPrice =
-      type === 'grupal' ? finalList.reduce((sum, p) => sum + (p.price ?? 0), 0) : Number(price) || 0;
+      type === 'indiv' ? Number(price) || 0 : finalList.reduce((sum, p) => sum + (p.price ?? 0), 0);
     const finalEntry: ClassEntry = {
       type,
       participants: finalList,
@@ -277,12 +308,15 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
   const title = `${entry ? 'Editar' : 'Nueva'} clase · ${WEEKDAY_NAMES_LONG[date.getDay()]} ${date.getDate()}/${
     date.getMonth() + 1
   } · ${minutesToLabel(start)}`;
-  const visible = type === 'indiv' ? participants.slice(0, 1) : participants;
+  // Individual = 1 lugar; Doble = 2 lugares fijos; Grupal = los que haya.
+  const visible = type === 'indiv' ? participants.slice(0, 1) : type === 'doble' ? participants.slice(0, 2) : participants;
   const chosenIds = participants.map((p) => p.studentId).filter((id): id is string => Boolean(id));
-  // Total de la clase grupal = suma de los precios de los alumnos cargados.
-  const grupalTotal = visible
+  // Grupal y Doble tienen precio por alumno; el total es la suma de los alumnos cargados.
+  const perStudentType = type === 'grupal' || type === 'doble';
+  const defStudentPrice = defaultStudentPrice(type, data.prices);
+  const perStudentTotal = visible
     .filter((p) => p.studentId || p.name.trim())
-    .reduce((sum, p) => sum + (p.price ?? data.prices.grupal), 0);
+    .reduce((sum, p) => sum + (p.price ?? defStudentPrice), 0);
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -321,24 +355,34 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
           <div className="segmented">
             <button
               type="button"
-              className={`segmented__option${type === 'grupal' ? ' segmented__option--active' : ''}`}
-              onClick={() => applyType('grupal')}
-            >
-              Grupal
-            </button>
-            <button
-              type="button"
               className={`segmented__option${type === 'indiv' ? ' segmented__option--active' : ''}`}
               onClick={() => applyType('indiv')}
             >
               Individual
             </button>
+            <button
+              type="button"
+              className={`segmented__option${type === 'doble' ? ' segmented__option--active' : ''}`}
+              onClick={() => applyType('doble')}
+            >
+              Doble
+            </button>
+            <button
+              type="button"
+              className={`segmented__option${type === 'grupal' ? ' segmented__option--active' : ''}`}
+              onClick={() => applyType('grupal')}
+            >
+              Grupal
+            </button>
           </div>
+          {type === 'doble' && (
+            <span className="discount-editor__hint">La clase Doble es de exactamente 2 alumnos.</span>
+          )}
         </div>
 
         <div className="class-form__row">
           <div className="class-form__label-row">
-            <label>{type === 'grupal' ? 'Alumnos' : 'Alumno'}</label>
+            <label>{type === 'indiv' ? 'Alumno' : 'Alumnos'}</label>
             <button type="button" className="link-btn" onClick={() => setShowDiscounts((v) => !v)}>
               {showDiscounts ? 'Ocultar descuentos' : 'Descuento puntual'}
             </button>
@@ -353,11 +397,11 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
                   onChange={(next) => updateParticipant(idx, next)}
                   onRemove={type === 'grupal' ? () => removeParticipant(idx) : undefined}
                 />
-                {type === 'grupal' && (
+                {perStudentType && (
                   <div className="participant-block__price">
                     <label>Precio de este alumno</label>
                     <NumberInput
-                      value={p.price ?? data.prices.grupal}
+                      value={p.price ?? defStudentPrice}
                       onChange={(n) => updateParticipant(idx, { ...p, price: n })}
                     />
                     <AmountButtons amounts={freqAmounts} onPick={(n) => updateParticipant(idx, { ...p, price: n })} />
@@ -444,7 +488,7 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
           ) : (
             <>
               <label>Total de la clase (suma de los alumnos)</label>
-              <div className="class-form__total">{formatCurrency(grupalTotal)}</div>
+              <div className="class-form__total">{formatCurrency(perStudentTotal)}</div>
             </>
           )}
         </div>

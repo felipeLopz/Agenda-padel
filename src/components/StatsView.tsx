@@ -138,12 +138,13 @@ export default function StatsView({ onGoCaja }: StatsViewProps) {
       </div>
 
       <div className={`stats-grid period-slide period-slide--${slideDir}`} key={`grid-${year}-${month}`}>
-        {/* Grupal vs individual */}
+        {/* Grupal vs doble vs individual */}
         <section className="finance-card">
-          <h3>Grupales vs individuales</h3>
+          <h3>Por tipo de clase</h3>
           <Donut
             segments={[
               { label: 'Grupales', value: st.byTypeCount.grupal, color: 'var(--blue)' },
+              { label: 'Dobles', value: st.byTypeCount.doble, color: 'var(--doble)' },
               { label: 'Individuales', value: st.byTypeCount.indiv, color: 'var(--orange)' },
             ]}
             centerLabel={`${st.totals.classes}`}
@@ -156,6 +157,7 @@ export default function StatsView({ onGoCaja }: StatsViewProps) {
           <HBarChart
             items={[
               { label: 'Grupal', value: Math.round(st.incomeByType.grupal), color: 'var(--blue)' },
+              { label: 'Doble', value: Math.round(st.incomeByType.doble), color: 'var(--doble)' },
               { label: 'Individual', value: Math.round(st.incomeByType.indiv), color: 'var(--orange)' },
             ]}
             formatValue={formatCurrency}

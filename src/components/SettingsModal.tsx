@@ -22,6 +22,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const { user, signOut } = useAuth();
   const dialog = useDialog();
   const [grupal, setGrupal] = useState(data.prices.grupal);
+  const [doble, setDoble] = useState(data.prices.doble);
   const [indiv, setIndiv] = useState(data.prices.indiv);
   const [methods, setMethods] = useState<PaymentMethod[]>(data.paymentMethods);
   const [defaultMethodId, setDefaultMethodId] = useState(data.settings.defaultMethodId);
@@ -61,7 +62,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   }
 
   function handleSave() {
-    setPrices({ grupal: Number(grupal) || 0, indiv: Number(indiv) || 0 });
+    setPrices({ grupal: Number(grupal) || 0, doble: Number(doble) || 0, indiv: Number(indiv) || 0 });
     const cleanMethods = methods.filter((m) => m.label.trim());
     setPaymentMethods(cleanMethods);
     const validDefault = cleanMethods.some((m) => m.id === defaultMethodId)
@@ -108,12 +109,16 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       <div className="settings">
         <div className="class-form__row class-form__row--split">
           <div>
-            <label>Precio grupal (por alumno)</label>
-            <NumberInput value={grupal} onChange={setGrupal} />
-          </div>
-          <div>
             <label>Precio individual (por clase)</label>
             <NumberInput value={indiv} onChange={setIndiv} />
+          </div>
+          <div>
+            <label>Precio doble (por alumno)</label>
+            <NumberInput value={doble} onChange={setDoble} />
+          </div>
+          <div>
+            <label>Precio grupal (por alumno)</label>
+            <NumberInput value={grupal} onChange={setGrupal} />
           </div>
         </div>
 

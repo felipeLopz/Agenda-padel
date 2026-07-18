@@ -1,6 +1,6 @@
 import { useState, type DragEvent, type MouseEvent } from 'react';
 import { useAgenda } from '../state/AgendaContext';
-import { WEEKDAY_NAMES_LONG } from '../lib/constants';
+import { WEEKDAY_NAMES_LONG, CLASS_TYPE_LABEL } from '../lib/constants';
 import { addDays, dayKey, isToday, startOfWeek } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { dayTotals, classStatus } from '../lib/money';
@@ -259,15 +259,17 @@ export default function WeeklyView({
                       )}
                       <span className="cal-event__time">{classRangeLabel(start, entry)}</span>
                       <span className="cal-event__type">
-                        {entry.type === 'grupal' ? `${entry.participants.length} · Grupal` : 'Individual'}
+                        {entry.type === 'indiv'
+                          ? CLASS_TYPE_LABEL.indiv
+                          : `${entry.participants.length} · ${CLASS_TYPE_LABEL[entry.type]}`}
                         {state !== 'confirmada' && <span className="cal-event__state"> · {state}</span>}
                       </span>
                       <span className="cal-event__names">
-                        {entry.type === 'grupal'
-                          ? `${entry.participants.length} alumnos`
-                          : entry.participants[0]
+                        {entry.type === 'indiv'
+                          ? entry.participants[0]
                             ? participantName(entry.participants[0], data.students)
-                            : '—'}
+                            : '—'
+                          : `${entry.participants.length} alumnos`}
                       </span>
                       {moneyNote && (
                         <span className={`cal-event__money-note cal-event__money-note--${moneyNote.kind}`}>

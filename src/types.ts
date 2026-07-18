@@ -13,8 +13,15 @@
 // (antes `{ day, hour }`). La migración v9→v10 convierte las horas enteras a minutos
 // (hora × 60) sin perder nada (ver lib/migrate.ts).
 
-/** Grupal: varios alumnos, se cobra por alumno. Individual: un solo alumno, precio por clase. */
-export type ClassType = 'grupal' | 'indiv';
+/**
+ * Tipo de clase (v14):
+ *  - 'indiv'  → Individual: un solo alumno, precio por clase.
+ *  - 'doble'  → Doble: exactamente 2 alumnos, se cobra por alumno (como grupal, con su
+ *    propio precio por defecto).
+ *  - 'grupal' → varios alumnos, se cobra por alumno.
+ * En cuanto a la plata, 'doble' funciona igual que 'grupal' (precio propio por alumno).
+ */
+export type ClassType = 'grupal' | 'doble' | 'indiv';
 
 /** Nivel viejo del alumno (v6 y anteriores). Se conserva SOLO para migrar a v7. */
 export type StudentLevel = 'principiante' | 'intermedio' | 'avanzado' | 'competicion';
@@ -194,6 +201,8 @@ export type DayKey = string;
 export interface Prices {
   /** Precio grupal, por alumno. */
   grupal: number;
+  /** Precio doble (clase de 2 alumnos), por alumno (v14). */
+  doble: number;
   /** Precio individual, por clase. */
   indiv: number;
 }

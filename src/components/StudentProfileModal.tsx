@@ -4,7 +4,7 @@ import { useAgenda } from '../state/AgendaContext';
 import { useDialog } from '../state/DialogContext';
 import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
-import { WEEKDAY_NAMES } from '../lib/constants';
+import { WEEKDAY_NAMES, CLASS_TYPE_LABEL } from '../lib/constants';
 import { displayName, CATEGORY_LABELS, RANK_LABELS, whatsappLink } from '../lib/students';
 import { minutesToLabel } from '../lib/time';
 import { describeDiscount } from '../lib/discount';
@@ -323,9 +323,7 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
                     {WEEKDAY_NAMES[date.getDay()]} {date.getDate()}/{date.getMonth() + 1}/{date.getFullYear()} ·{' '}
                     {minutesToLabel(it.start)}
                   </span>
-                  <span className={`badge badge--${it.entry.type}`}>
-                    {it.entry.type === 'grupal' ? 'Grupal' : 'Individual'}
-                  </span>
+                  <span className={`badge badge--${it.entry.type}`}>{CLASS_TYPE_LABEL[it.entry.type]}</span>
                   <span title="Parte de este alumno">{formatCurrency(it.net)}</span>
                   {it.coveredByPack ? (
                     <span className="disc-tag disc-tag--pack">pack</span>

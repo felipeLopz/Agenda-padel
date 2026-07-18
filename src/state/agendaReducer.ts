@@ -179,8 +179,9 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
         else days[day] = daySlots;
       } else {
         const oldLen = entry.participants.length;
+        // Grupal y Doble: el total es la suma de los precios por alumno que quedan. Individual: fijo.
         const nextPrice =
-          entry.type === 'grupal'
+          entry.type === 'grupal' || entry.type === 'doble'
             ? nextParticipants.reduce((sum, p) => sum + (p.price ?? entry.price / oldLen), 0)
             : entry.price;
         const nextEntry: ClassEntry = { ...entry, participants: nextParticipants, price: nextPrice };

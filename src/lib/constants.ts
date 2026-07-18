@@ -1,4 +1,11 @@
-import type { PaymentMethod, Prices, Settings } from '../types';
+import type { ClassType, PaymentMethod, Prices, Settings } from '../types';
+
+/** Etiqueta legible de cada tipo de clase (una sola fuente para toda la app). */
+export const CLASS_TYPE_LABEL: Record<ClassType, string> = {
+  grupal: 'Grupal',
+  doble: 'Doble',
+  indiv: 'Individual',
+};
 
 /** Franjas horarias de trabajo: 7 a 16, una clase por hora. */
 export const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -32,10 +39,10 @@ export const WEEKDAY_NAMES_LONG = [
 
 export const STORAGE_KEY = 'agenda-padel:data';
 
-export const DEFAULT_PRICES: Prices = { grupal: 4000, indiv: 12000 };
+export const DEFAULT_PRICES: Prices = { grupal: 4000, doble: 8000, indiv: 12000 };
 
-/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→…→v13. */
-export const DATA_VERSION = 13;
+/** Versión actual del formato de datos. Ver lib/migrate.ts para las migraciones v1→…→v14. */
+export const DATA_VERSION = 14;
 
 /**
  * Primera versión con "agenda de tiempo real": la clave del día es la hora de inicio en

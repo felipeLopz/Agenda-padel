@@ -93,11 +93,11 @@ export function classKey(day: string, start: number): string {
 
 /**
  * Parte "bruta" (antes de descuentos) de un alumno en una clase.
- * Grupal (v8): el precio PROPIO del alumno, sin dividir. Individual: el precio de la
- * clase. Fallback al prorrateo viejo (precio ÷ cantidad) por si faltara el precio propio.
+ * Grupal y Doble (v8/v14): el precio PROPIO del alumno, sin dividir. Individual: el precio de
+ * la clase. Fallback al prorrateo viejo (precio ÷ cantidad) por si faltara el precio propio.
  */
 export function participantGross(entry: ClassEntry, participantIndex: number): number {
-  if (entry.type === 'grupal') {
+  if (entry.type === 'grupal' || entry.type === 'doble') {
     const own = entry.participants[participantIndex]?.price;
     return typeof own === 'number' ? own : entry.price / (entry.participants.length || 1);
   }

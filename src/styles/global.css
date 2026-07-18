@@ -14,6 +14,8 @@
   --blue-light: #5b8dff;
   --orange: #ff8a3d;
   --orange-light: #ffab6b;
+  --doble: #14b8a6;
+  --doble-light: #45d6c5;
   --green: #2ecc71;
   --green-dim: rgba(46, 204, 113, 0.16);
   --amber: #f5a623;
@@ -213,6 +215,12 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 .badge--indiv {
   background: rgba(255, 138, 61, 0.18);
   color: var(--orange-light);
+}
+
+/* Tipo Doble (v14): color propio (teal), distinto de grupal (azul) e individual (naranja). */
+.badge--doble {
+  background: rgba(20, 184, 166, 0.18);
+  color: var(--doble-light);
 }
 
 .chip {
@@ -440,6 +448,9 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 
 .day-bar--indiv {
   background: var(--orange);
+}
+.day-bar--doble {
+  background: var(--doble);
 }
 
 .day-bar--pending {
@@ -740,6 +751,10 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 
 .cal-event--indiv {
   border-left-color: var(--orange);
+}
+
+.cal-event--doble {
+  border-left-color: var(--doble);
 }
 
 .cal-event--pagada {
@@ -2583,6 +2598,8 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   --blue-light: #2f6bff;
   --orange: #e0730f;
   --orange-light: #ef8a3a;
+  --doble: #0e9384;
+  --doble-light: #12b3a1;
   --green: #1f9d57;
   --green-dim: rgba(31, 157, 87, 0.14);
   --amber: #c2870f;

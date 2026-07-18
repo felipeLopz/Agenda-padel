@@ -3,7 +3,7 @@ import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
-import { WEEKDAY_NAMES } from '../lib/constants';
+import { WEEKDAY_NAMES, CLASS_TYPE_LABEL } from '../lib/constants';
 import { classNames, displayName, normalizeName } from '../lib/students';
 import { minutesToLabel } from '../lib/time';
 import type { ClassType, Student } from '../types';
@@ -115,7 +115,7 @@ export default function GlobalSearchModal({ onClose, onOpenStudent, onOpenDay }:
                   {WEEKDAY_NAMES[date.getDay()]} {date.getDate()}/{date.getMonth() + 1}/{date.getFullYear()} ·{' '}
                   {minutesToLabel(c.start)}
                 </span>
-                <span className={`badge badge--${c.type}`}>{c.type === 'grupal' ? 'Grupal' : 'Individual'}</span>
+                <span className={`badge badge--${c.type}`}>{CLASS_TYPE_LABEL[c.type]}</span>
                 <span className="search-result__sub">{c.names}</span>
               </button>
             );

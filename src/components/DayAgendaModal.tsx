@@ -1,6 +1,6 @@
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
-import { WEEKDAY_NAMES_LONG } from '../lib/constants';
+import { WEEKDAY_NAMES_LONG, CLASS_TYPE_LABEL } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
 import { dayTotals, classStatus, shareBreakdown, STATUS_LABEL, classKey, studentDebt } from '../lib/money';
@@ -125,9 +125,7 @@ export default function DayAgendaModal({
               ⚠ se solapa
             </span>
           )}
-          <span className={`badge badge--${entry.type}`}>
-            {entry.type === 'grupal' ? 'Grupal' : 'Individual'}
-          </span>
+          <span className={`badge badge--${entry.type}`}>{CLASS_TYPE_LABEL[entry.type]}</span>
           {state !== 'confirmada' && (
             <span className={`chip chip--state-${state}`}>
               {STATE_LABEL[state]}
