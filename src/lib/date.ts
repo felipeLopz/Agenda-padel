@@ -14,6 +14,15 @@ export function parseDayKey(key: DayKey): Date {
   return new Date(y, m, d);
 }
 
+/**
+ * Fecha ISO "YYYY-MM-DD" (la que devuelve un <input type="date">) → clave de día
+ * "AÑO-MES0-DIA". Es el inverso de `dayKeyToISO` (en money.ts).
+ */
+export function isoToDayKey(iso: string): DayKey {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${y}-${(m || 1) - 1}-${d || 1}`;
+}
+
 export function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&

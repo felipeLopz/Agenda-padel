@@ -27,7 +27,7 @@ import { agendaReducer, type PlacedClass } from './agendaReducer';
 import { exportToFile, importFromFile, loadData, saveData } from '../lib/storage';
 import { classKey, computeLedger, dayKeyToISO, type Ledger } from '../lib/money';
 import { newId } from '../lib/id';
-import { addDays, dayKey } from '../lib/date';
+import { addDays, dayKey, parseDayKey } from '../lib/date';
 import { classDuration } from '../lib/classMeta';
 import { findOverlapStart } from '../lib/time';
 import { seriesDayKeys, type RecurrenceInput } from '../lib/recurrence';
@@ -130,6 +130,12 @@ interface AgendaContextValue {
   updateSeries: (seriesId: string, patch: Partial<ClassEntry>) => void;
   /** Borra todas las clases de una serie. */
   deleteSeries: (seriesId: string) => void;
+  /**
+   * Termina una serie desde una fecha: borra las clases de esa serie a partir de `fromDay`
+   * (inclusive) y DEJA INTACTAS las anteriores, con sus pagos, asistencia e historial.
+   * Devuelve cuántas clases futuras se borraron y cuántas quedaron en el pasado.
+   */
+  endSeriesFrom: (seriesId: string, fromDay: string) => { removed: number; kept: number };
   /** Mueve una clase a otra franja. Devuelve false si el destino se solapa con otra clase. */
   moveClass: (from: { day: string; start: number }, to: { day: string; start: number }) => boolean;
   /** Define/actualiza el bloqueo de un día. */
@@ -575,6 +581,27 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       deleteSeries: (seriesId) => {
         capture('Serie borrada');
         dispatch({ type: 'DELETE_SERIES', payload: { seriesId } });
+      },
+
+      endSeriesFrom: (seriesId, fromDay) => {
+        // Se cuenta ANTES de despachar, para poder avisarle al profe exactamente qué pasó
+        // (cuántas se borran de acá en adelante y cuántas quedan tal cual en el pasado).
+        // La comparación es por timestamp: la clave de día no está zero-padded (ver reducer).
+        const cutTime = parseDayKey(fromDay).getTime();
+        let removed = 0;
+        let kept = 0;
+        for (const [day, slots] of Object.entries(data.days)) {
+          const dayTime = parseDayKey(day).getTime();
+          for (const entry of Object.values(slots)) {
+            if (entry.seriesId !== seriesId) continue;
+            if (dayTime >= cutTime) removed += 1;
+            else kept += 1;
+          }
+        }
+        if (removed === 0) return { removed: 0, kept };
+        capture('Serie terminada desde una fecha');
+        dispatch({ type: 'END_SERIES_FROM', payload: { seriesId, fromDay } });
+        return { removed, kept };
       },
 
       moveClass: (from, to) => {

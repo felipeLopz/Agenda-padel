@@ -12,6 +12,7 @@ import type {
   Settings,
   Student,
 } from '../types';
+import { parseDayKey } from '../lib/date';
 
 /** Una clase con su ubicación (inicio en minutos), para altas en lote (series, copiar semana). */
 export interface PlacedClass {
@@ -32,6 +33,7 @@ export type AgendaAction =
   | { type: 'ADD_CLASSES'; payload: { entries: PlacedClass[] } }
   | { type: 'MOVE_CLASS'; payload: { from: { day: string; start: number }; to: { day: string; start: number } } }
   | { type: 'DELETE_SERIES'; payload: { seriesId: string } }
+  | { type: 'END_SERIES_FROM'; payload: { seriesId: string; fromDay: string } }
   | { type: 'UPDATE_SERIES'; payload: { seriesId: string; patch: Partial<ClassEntry> } }
   | { type: 'SET_BLOCK'; payload: { day: string; block: DayBlock } }
   | { type: 'REMOVE_BLOCK'; payload: { day: string } }
@@ -232,6 +234,39 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
       const { seriesId } = action.payload;
       const days: AgendaData['days'] = {};
       for (const [day, slots] of Object.entries(state.days)) {
+        const kept: Record<string, ClassEntry> = {};
+        for (const [startStr, entry] of Object.entries(slots)) {
+          if (entry.seriesId !== seriesId) kept[startStr] = entry;
+        }
+        if (Object.keys(kept).length > 0) days[day] = kept;
+      }
+      return { ...state, days };
+    }
+
+    case 'END_SERIES_FROM': {
+      // Termina la serie a partir de `fromDay`: borra SOLO las clases de esa serie cuyo día
+      // sea >= la fecha de corte. Todo lo anterior queda EXACTAMENTE igual.
+      //
+      // Cómo se garantiza que el pasado no se toca:
+      //  1) `state.payments` se devuelve SIN modificar (misma referencia): no se borra ni se
+      //     re-apunta ningún pago, así que la plata, las deudas y los packs quedan intactos.
+      //     La asistencia y el historial viven dentro de cada clase, y las clases anteriores
+      //     al corte se copian tal cual (misma referencia a la entrada).
+      //  2) El filtro exige las DOS condiciones: pertenecer a la serie Y ser >= al corte.
+      //     Cualquier clase de otra serie, o suelta, o anterior, se conserva siempre.
+      //  3) La comparación es por TIMESTAMP, no por texto: la clave de día es "año-mes0-día"
+      //     SIN ceros a la izquierda ("2026-7-3"), así que comparar strings ordenaría mal
+      //     (“2026-7-3” > “2026-7-30”) y podría borrar días del pasado. parseDayKey evita eso.
+      const { seriesId, fromDay } = action.payload;
+      const cutTime = parseDayKey(fromDay).getTime();
+      const days: AgendaData['days'] = {};
+      for (const [day, slots] of Object.entries(state.days)) {
+        const dayTime = parseDayKey(day).getTime();
+        // Día anterior al corte: se conserva entero, sin mirar nada más.
+        if (dayTime < cutTime) {
+          days[day] = slots;
+          continue;
+        }
         const kept: Record<string, ClassEntry> = {};
         for (const [startStr, entry] of Object.entries(slots)) {
           if (entry.seriesId !== seriesId) kept[startStr] = entry;

@@ -34,6 +34,8 @@ interface DayAgendaModalProps {
   onReminder: (start: number) => void;
   /** Convertir el turno en una serie recurrente (solo turnos que aún no son serie). */
   onRepeat: (start: number) => void;
+  /** Terminar la serie desde una fecha (solo turnos que YA son parte de una serie). */
+  onEndSeries: (start: number) => void;
   onBlockDay: () => void;
 }
 
@@ -48,6 +50,7 @@ export default function DayAgendaModal({
   onDuplicateClass,
   onReminder,
   onRepeat,
+  onEndSeries,
   onBlockDay,
 }: DayAgendaModalProps) {
   const {
@@ -84,11 +87,16 @@ export default function DayAgendaModal({
 
   async function handleDelete(start: number, entry: ClassEntry) {
     if (entry.seriesId) {
-      const borrarSerie = await dialog.confirm('Esta clase es parte de una serie. ¿Qué querés borrar?', {
-        danger: true,
-        confirmLabel: 'Borrar toda la serie',
-        cancelLabel: 'No, solo esta',
-      });
+      // Borrado entero o solo esta clase. Para terminar la serie desde una fecha (conservando
+      // el pasado) está el botón ✂ "Terminar serie", que es lo más seguro y se avisa acá.
+      const borrarSerie = await dialog.confirm(
+        'Esta clase es parte de una serie. ¿Qué querés borrar? Si solo querés cortarla de acá en adelante y conservar lo anterior, cancelá y usá el botón ✂ "Terminar serie".',
+        {
+          danger: true,
+          confirmLabel: 'Borrar toda la serie',
+          cancelLabel: 'No, solo esta',
+        }
+      );
       if (borrarSerie) {
         deleteSeries(entry.seriesId);
         return;
@@ -168,6 +176,17 @@ export default function DayAgendaModal({
                 data-tip="Repetir"
               >
                 🔁
+              </button>
+            )}
+            {/* Ya es parte de una serie: en vez de "repetir" se ofrece cortarla desde acá. */}
+            {entry.seriesId && (
+              <button
+                className="icon-btn has-tip"
+                onClick={() => onEndSeries(start)}
+                aria-label="Terminar la serie desde acá"
+                data-tip="Terminar serie"
+              >
+                ✂
               </button>
             )}
             <button className="icon-btn has-tip" onClick={() => onEditClass(start, entry)} aria-label="Editar" data-tip="Editar">
