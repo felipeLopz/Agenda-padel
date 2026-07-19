@@ -18,6 +18,7 @@ import NumberInput from './NumberInput';
 import AmountButtons from './AmountButtons';
 import TimeField from './TimeField';
 import PaymentToggle from './PaymentToggle';
+import { useDeleteClassFlow } from '../hooks/useDeleteClass';
 
 /** Campos que se pueden prellenar desde el turno anterior o desde una plantilla. */
 interface PrefillSource {
@@ -46,6 +47,7 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
   const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, makeSeriesLive, updateSeries, saveTemplate, deleteTemplate } =
     useAgenda();
   const dialog = useDialog();
+  const confirmAndDelete = useDeleteClassFlow();
   // `initialStart` es la franja actual de la clase (su clave); `start` es la elegida en el form.
   const { day, start: initialStart, entry } = target;
 
@@ -657,15 +659,9 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
               type="button"
               className="btn btn--small day-slot__delete-btn class-form__delete"
               onClick={async () => {
-                if (
-                  await dialog.confirm('¿Borrar este turno entero? Podés deshacerlo con "Deshacer".', {
-                    danger: true,
-                    confirmLabel: 'Borrar turno',
-                  })
-                ) {
-                  deleteClass(day, initialStart);
-                  onClose();
-                }
+                // Mismo flujo que en la agenda del día: si la clase es de una serie, pregunta
+                // si borra solo esta o esta y las siguientes.
+                if (await confirmAndDelete(day, initialStart, entry)) onClose();
               }}
             >
               🗑 Borrar turno

@@ -27,7 +27,6 @@ import SyncCheck from './components/SyncCheck';
 import Spinner from './components/Spinner';
 import ReminderEditModal from './components/ReminderEditModal';
 import RepeatClassModal from './components/RepeatClassModal';
-import EndSeriesModal from './components/EndSeriesModal';
 import RemindersPanel from './components/RemindersPanel';
 import FabMenu from './components/FabMenu';
 import Confetti from './components/Confetti';
@@ -47,7 +46,6 @@ function AppShell() {
   const [reminderTarget, setReminderTarget] = useState<{ day: string; start: number } | null>(null);
   // Turno a convertir en serie recurrente (desde la agenda del día o la edición).
   const [repeatTarget, setRepeatTarget] = useState<{ day: string; start: number } | null>(null);
-  const [endSeriesTarget, setEndSeriesTarget] = useState<{ day: string; start: number } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [newStudentOpen, setNewStudentOpen] = useState(false);
   const [year, setYear] = useState(() => loadUiState().year ?? new Date().getFullYear());
@@ -136,7 +134,6 @@ function AppShell() {
           onDuplicateClass={(start) => setDuplicateTarget({ day: openDay, start })}
           onReminder={(start) => setReminderTarget({ day: openDay, start })}
           onRepeat={(start) => setRepeatTarget({ day: openDay, start })}
-          onEndSeries={(start) => setEndSeriesTarget({ day: openDay, start })}
           onBlockDay={() => setBlockDayKey(openDay)}
         />
       )}
@@ -227,14 +224,6 @@ function AppShell() {
 
       {repeatTarget && (
         <RepeatClassModal day={repeatTarget.day} start={repeatTarget.start} onClose={() => setRepeatTarget(null)} />
-      )}
-
-      {endSeriesTarget && (
-        <EndSeriesModal
-          day={endSeriesTarget.day}
-          start={endSeriesTarget.start}
-          onClose={() => setEndSeriesTarget(null)}
-        />
       )}
 
       {remindersOpen && (

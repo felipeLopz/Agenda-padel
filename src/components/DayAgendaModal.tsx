@@ -19,6 +19,7 @@ import { isVirtual, slotsForDay } from '../lib/series';
 import { holidayName } from '../lib/holidays';
 import { useExitAnim } from '../hooks/useExitAnim';
 import { useDialog } from '../state/DialogContext';
+import { useDeleteClassFlow } from '../hooks/useDeleteClass';
 import AttendanceToggle from './AttendanceToggle';
 import PaymentToggle from './PaymentToggle';
 import type { ClassEntry } from '../types';
@@ -35,8 +36,6 @@ interface DayAgendaModalProps {
   onReminder: (start: number) => void;
   /** Convertir el turno en una serie recurrente (solo turnos que aún no son serie). */
   onRepeat: (start: number) => void;
-  /** Terminar la serie desde una fecha (solo turnos que YA son parte de una serie). */
-  onEndSeries: (start: number) => void;
   onBlockDay: () => void;
 }
 
@@ -51,15 +50,11 @@ export default function DayAgendaModal({
   onDuplicateClass,
   onReminder,
   onRepeat,
-  onEndSeries,
   onBlockDay,
 }: DayAgendaModalProps) {
   const {
     data,
     ledger,
-    deleteClass,
-    deleteSeries,
-    deleteSeriesOccurrence,
     materializeIfVirtual,
     quickCollectClass,
     undoCollectClass,
@@ -90,38 +85,8 @@ export default function DayAgendaModal({
   // Inicios cuyas clases se solapan con otra (marca informativa; puede venir de datos viejos).
   const overlaps = computeDayOverlaps(slots);
 
-  async function handleDelete(start: number, entry: ClassEntry) {
-    if (entry.seriesId) {
-      // Borrado entero o solo esta clase. Para terminar la serie desde una fecha (conservando
-      // el pasado) está el botón ✂ "Terminar serie", que es lo más seguro y se avisa acá.
-      const borrarSerie = await dialog.confirm(
-        'Esta clase es parte de una serie. ¿Qué querés borrar? Si solo querés cortarla de acá en adelante y conservar lo anterior, cancelá y usá el botón ✂ "Terminar serie".',
-        {
-          danger: true,
-          confirmLabel: 'Borrar toda la serie',
-          cancelLabel: 'No, solo esta',
-        }
-      );
-      if (borrarSerie) {
-        deleteSeries(entry.seriesId);
-        return;
-      }
-      // Solo esta semana: si la repetición todavía es virtual no hay fila que borrar, así
-      // que se anota la fecha como salteada en la regla. `deleteSeriesOccurrence` resuelve
-      // los dos casos (real o virtual) en un solo lugar.
-      const ok = await dialog.confirm('¿Borrar solo esta semana? Las demás repeticiones quedan igual.', {
-        danger: true,
-        confirmLabel: 'Borrar esta semana',
-      });
-      if (ok) deleteSeriesOccurrence(day, start);
-      return;
-    }
-    const ok = await dialog.confirm('¿Borrar este turno entero? Podés deshacerlo con el botón "Deshacer".', {
-      danger: true,
-      confirmLabel: 'Borrar turno',
-    });
-    if (ok) deleteClass(day, start);
-  }
+  // Borrar un turno: flujo único compartido con la edición de la clase (ver useDeleteClassFlow).
+  const confirmAndDelete = useDeleteClassFlow();
 
   const title = `${WEEKDAY_NAMES_LONG[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
 
@@ -208,17 +173,6 @@ export default function DayAgendaModal({
                 🔁
               </button>
             )}
-            {/* Ya es parte de una serie: en vez de "repetir" se ofrece cortarla desde acá. */}
-            {entry.seriesId && (
-              <button
-                className="icon-btn has-tip"
-                onClick={() => onEndSeries(start)}
-                aria-label="Terminar la serie desde acá"
-                data-tip="Terminar serie"
-              >
-                ✂
-              </button>
-            )}
             <button
               className="icon-btn has-tip"
               onClick={() => {
@@ -245,7 +199,7 @@ export default function DayAgendaModal({
             </button>
             <button
               className="btn btn--small day-slot__delete-btn"
-              onClick={() => handleDelete(start, entry)}
+              onClick={() => confirmAndDelete(day, start, entry)}
               aria-label="Borrar turno"
               title="Borrar el turno entero (se puede deshacer)"
             >
