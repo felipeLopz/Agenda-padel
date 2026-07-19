@@ -10,7 +10,6 @@ import { participantName } from '../lib/students';
 import { formatCurrency } from '../lib/format';
 import { classDuration, classState, STATE_LABEL, STATES } from '../lib/classMeta';
 import { findOverlapStart, minutesToLabel, nextFreeStart } from '../lib/time';
-import type { RecurrenceInput } from '../lib/recurrence';
 import type { Attachment, ClassEntry, ClassFormTarget, ClassParticipant, ClassState, ClassType } from '../types';
 import StudentPicker from './StudentPicker';
 import DiscountEditor from './DiscountEditor';
@@ -19,7 +18,6 @@ import NumberInput from './NumberInput';
 import AmountButtons from './AmountButtons';
 import TimeField from './TimeField';
 import PaymentToggle from './PaymentToggle';
-import RecurrenceFields from './RecurrenceFields';
 
 /** Campos que se pueden prellenar desde el turno anterior o desde una plantilla. */
 interface PrefillSource {
@@ -43,9 +41,9 @@ function emptyParticipant(): ClassParticipant {
   return { studentId: null, name: '' };
 }
 
-/** Alta y edición de una clase, con duración, estado y recurrencia. */
+/** Alta y edición de una clase, con duración, estado y turno fijo semanal. */
 export default function ClassFormModal({ target, onClose, onReminder, onRepeat }: ClassFormModalProps) {
-  const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, createSeries, updateSeries, saveTemplate, deleteTemplate } =
+  const { data, upsertClass, relocateClass, deleteClass, quickCollectClass, makeSeriesLive, updateSeries, saveTemplate, deleteTemplate } =
     useAgenda();
   const dialog = useDialog();
   // `initialStart` es la franja actual de la clase (su clave); `start` es la elegida en el form.
@@ -69,10 +67,8 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
   // Aplicar la edición a toda la serie (solo si la clase pertenece a una).
   const [applyToSeries, setApplyToSeries] = useState(false);
 
-  // Recurrencia (solo al crear). Los campos viven en <RecurrenceFields>, que emite el
-  // RecurrenceInput ya armado (misma UI/lógica que al convertir un turno en serie).
+  // Turno fijo semanal (solo al crear): se guarda como serie viva, sin fecha de fin.
   const [repeat, setRepeat] = useState(false);
-  const [recurrence, setRecurrence] = useState<RecurrenceInput>({ everyWeeks: 1, end: { type: 'count', count: 4 } });
 
   // Guardar el turno como plantilla (nombre + toggle).
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
@@ -285,10 +281,16 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
     }
 
     if (!entry && repeat) {
-      const res = createSeries(day, start, finalEntry, recurrence);
-      let msg = `Se crearon ${res.created} clases de la serie.`;
-      if (res.skipped > 0) msg += ` Se omitieron ${res.skipped} (se solapaban con otra clase de ese día).`;
-      void dialog.alert(msg);
+      // Turno fijo semanal (serie viva): se guarda ESTA clase y se arma la regla a partir de
+      // ella. No se generan clases por adelantado: las repeticiones aparecen solas en la
+      // agenda y las que van venciendo se vuelven clases reales.
+      upsertClass(day, start, finalEntry);
+      // En el siguiente tick la clase ya está guardada, así que la regla se arma sobre ella.
+      setTimeout(() => makeSeriesLive(day, start), 0);
+      void dialog.alert(
+        `Listo: este turno queda fijo todos los ${WEEKDAY_NAMES_LONG[parseDayKey(day).getDay()].toLowerCase()} ` +
+          'a la misma hora, sin fecha de fin. Para cortarlo, usá ✂ "Terminar serie".'
+      );
       onClose();
       return;
     }
@@ -573,14 +575,20 @@ export default function ClassFormModal({ target, onClose, onReminder, onRepeat }
           <AttachmentsEditor attachments={attachments} onChange={setAttachments} />
         </div>
 
-        {/* Recurrencia (solo al crear). Misma UI que al convertir un turno en serie. */}
+        {/* Turno fijo semanal (solo al crear): serie viva, sin fecha de fin. */}
         {!entry && (
           <div className="class-form__row">
             <label className="checkbox-row">
               <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
-              Repetir esta clase
+              Turno fijo: se repite todas las semanas
             </label>
-            {repeat && <RecurrenceFields startDay={day} onChange={setRecurrence} />}
+            {repeat && (
+              <span className="discount-editor__hint">
+                Se repite todos los {WEEKDAY_NAMES_LONG[parseDayKey(day).getDay()].toLowerCase()} a la misma hora,
+                sin fecha de fin. Cada semana es una clase aparte (su plata y su asistencia son independientes).
+                Para cortarlo, después usás ✂ «Terminar serie» y elegís desde qué fecha.
+              </span>
+            )}
           </div>
         )}
 

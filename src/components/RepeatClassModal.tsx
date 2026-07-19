@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { useDialog } from '../state/DialogContext';
@@ -6,8 +5,6 @@ import { WEEKDAY_NAMES_LONG } from '../lib/constants';
 import { parseDayKey } from '../lib/date';
 import { classNames } from '../lib/students';
 import { classRangeLabel } from '../lib/time';
-import RecurrenceFields from './RecurrenceFields';
-import type { RecurrenceInput } from '../lib/recurrence';
 
 interface RepeatClassModalProps {
   day: string;
@@ -17,16 +14,18 @@ interface RepeatClassModalProps {
 }
 
 /**
- * Convierte un turno YA existente en una serie recurrente sin rehacerlo. Usa la MISMA
- * recurrencia (cada X semanas, hasta una fecha o una cantidad) que al crear desde cero: el
- * turno original queda como la primera clase y se generan las repeticiones hacia adelante.
+ * Convierte un turno YA existente en un TURNO FIJO SEMANAL (serie viva, v15): se repite
+ * todas las semanas, el mismo día y a la misma hora, sin fecha de fin, hasta que el profe
+ * lo corte.
+ *
+ * No genera clases por adelantado: guarda la regla y las repeticiones aparecen solas al
+ * navegar la agenda. Las que ya vencieron se convierten en clases reales al abrir la app,
+ * así se cobran como cualquier otra.
  */
 export default function RepeatClassModal({ day, start, onClose }: RepeatClassModalProps) {
-  const { data, makeSeriesFromClass } = useAgenda();
+  const { data, makeSeriesLive } = useAgenda();
   const dialog = useDialog();
   const entry = data.days[day]?.[String(start)];
-  // Recurrencia por defecto (igual que en el alta): cada 1 semana, 4 clases.
-  const [recurrence, setRecurrence] = useState<RecurrenceInput>({ everyWeeks: 1, end: { type: 'count', count: 4 } });
 
   if (!entry) {
     onClose();
@@ -34,43 +33,42 @@ export default function RepeatClassModal({ day, start, onClose }: RepeatClassMod
   }
 
   const date = parseDayKey(day);
+  const weekday = WEEKDAY_NAMES_LONG[date.getDay()];
   const label = classNames(entry, data.students).join(', ') || `${entry.participants.length} alumno(s)`;
 
   function handleRepeat() {
-    const res = makeSeriesFromClass(day, start, recurrence);
-    if (res.created === 0) {
-      // Todas las fechas elegidas se solapan con turnos existentes, o se eligió una sola.
-      void dialog.alert(
-        'No se creó ninguna repetición: las fechas elegidas se solapan con turnos existentes, o elegiste una sola clase. Probá otra cantidad o revisá los horarios.'
-      );
+    const id = makeSeriesLive(day, start);
+    if (!id) {
+      void dialog.alert('No se pudo hacer fijo este turno. Probá cerrando y volviendo a abrir la agenda.');
       return;
     }
-    let msg = `Serie creada: ${res.created} repetición(es) nueva(s), además de este turno.`;
-    if (res.skipped > 0) {
-      msg += ` Se omitieron ${res.skipped} porque se solapaban con otra clase (esas no se crearon).`;
-    }
-    void dialog.alert(msg);
+    void dialog.alert(
+      `Listo: «${label}» queda fijo todos los ${weekday.toLowerCase()} a las ${classRangeLabel(start, entry)}, ` +
+        'sin fecha de fin. Cuando quieras cortarlo, usá ✂ "Terminar serie" y elegís desde qué fecha.'
+    );
     onClose();
   }
 
   return (
-    <Modal title="Repetir turno" onClose={onClose}>
+    <Modal title="Hacer fijo todas las semanas" onClose={onClose}>
       <div className="class-form">
         <p className="settings__hint">
-          Convertir «{label}» del {WEEKDAY_NAMES_LONG[date.getDay()]} {date.getDate()}/{date.getMonth() + 1} ·{' '}
-          {classRangeLabel(start, entry)} en una serie. Este turno queda igual (será la primera clase) y se crean las
-          repeticiones hacia adelante, copiando alumnos, precios, duración, horario, tipo y contenido. Las que se
-          solapen con un turno ya existente se omiten. La plata de cada clase es independiente.
+          «{label}» pasa a repetirse <strong>todos los {weekday.toLowerCase()}</strong> a las{' '}
+          {classRangeLabel(start, entry)}, <strong>sin fecha de fin</strong>, copiando alumnos, tipo, precios,
+          duración y contenido. Este turno queda igual (será el primero de la serie).
         </p>
-
-        <RecurrenceFields startDay={day} onChange={setRecurrence} />
+        <p className="settings__hint">
+          Cada semana es una clase aparte: su plata, su asistencia y sus recordatorios son independientes. Podés
+          editar o borrar una sola semana sin tocar las demás, y cortar la serie desde la fecha que quieras
+          conservando todo lo anterior.
+        </p>
 
         <div className="class-form__actions">
           <button className="btn btn--ghost" onClick={onClose}>
             Cancelar
           </button>
           <button className="btn btn--primary" onClick={handleRepeat}>
-            Crear serie
+            Hacer fijo semanal
           </button>
         </div>
       </div>

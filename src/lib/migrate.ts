@@ -15,6 +15,12 @@
 // v14 (Tipo Doble): se agrega el tipo de clase 'doble' (2 alumnos, precio propio por alumno) y
 //   el precio por defecto `prices.doble`. Aditivo: las clases viejas conservan su tipo
 //   (individual/grupal), no se convierten. El precio doble se completa con el default si falta.
+// v15 (Recurrencia viva): se agrega `series` (turnos fijos semanales guardados como REGLA,
+//   sin fecha de fin, que se muestran solos a medida que se navega la agenda). Aditivo: los
+//   datos viejos quedan con `series = {}` y NO se pierde nada. Las series del sistema anterior
+//   (que generaban las clases por adelantado) siguen siendo clases reales con su `seriesId`,
+//   su plata y su asistencia intactas: no se convierten ni se reinterpretan solas. El profe
+//   puede pasarlas al modelo nuevo a mano desde la agenda del día.
 // v13 (Reparación de horas corruptas): un bug histórico dejó clases guardadas con el inicio
 //   multiplicado por 60 de más (ej: 8:00 → 480 min → 28800). Como el inicio SIEMPRE está en
 //   0..1439 minutos, cualquier clave >= 1440 es imposible y se repara dividiendo por 60 hasta
@@ -33,9 +39,11 @@
 import type {
   Attachment,
   ClassParticipant,
+  ClassSeries,
   ClassState,
   ClassTemplate,
   ClassType,
+  SeriesTemplate,
   DayBlock,
   Discount,
   Expense,
@@ -62,6 +70,7 @@ import {
   TIME_REAL_VERSION,
 } from './constants';
 import { newId } from './id';
+import { addDays, dayKey, parseDayKey } from './date';
 import { applyDiscountChain } from './discount';
 import { displayName, makeStudentFromName, normalizeName } from './students';
 
@@ -582,7 +591,78 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
     settings,
     blocks,
     templates: normalizeTemplates(src.templates, v2.students),
+    series: normalizeSeries(src.series, v2.students),
   };
+}
+
+/**
+ * Sanea las series vivas (v15) desde un JSON externo. Aditivo: los datos anteriores a v15
+ * no tienen `series` y quedan con `{}`, sin perder NADA. Las series viejas (las que
+ * generaban clases por adelantado) siguen siendo clases reales con su `seriesId`, con su
+ * plata y su asistencia intactas: no se reinterpretan ni se convierten solas.
+ */
+function normalizeSeries(raw: unknown, students: Record<string, Student>): Record<string, ClassSeries> {
+  const out: Record<string, ClassSeries> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, rawS] of Object.entries(raw as Record<string, unknown>)) {
+    if (!rawS || typeof rawS !== 'object') continue;
+    const s = rawS as Partial<ClassSeries> & { template?: Partial<SeriesTemplate> };
+    // Sin día de inicio no hay serie posible: se descarta (nunca se pudo haber usado).
+    if (typeof s.startDay !== 'string' || !s.startDay) continue;
+    const start = Number(s.start);
+    if (!Number.isFinite(start) || start < 0 || start >= 24 * 60) continue;
+
+    const t: Partial<SeriesTemplate> = s.template ?? {};
+    const type: ClassType = t.type === 'indiv' ? 'indiv' : t.type === 'doble' ? 'doble' : 'grupal';
+    const participants = Array.isArray(t.participants)
+      ? (t.participants as unknown[])
+          .map((p): ClassParticipant | null => {
+            if (!p || typeof p !== 'object') return null;
+            const part = p as Partial<ClassParticipant>;
+            const pName = typeof part.name === 'string' ? part.name : '';
+            const studentId =
+              typeof part.studentId === 'string' && students[part.studentId] ? part.studentId : null;
+            if (!studentId && !pName.trim()) return null;
+            return {
+              studentId,
+              name: pName,
+              discount: parseDiscount(part.discount),
+              price: typeof part.price === 'number' && part.price >= 0 ? part.price : undefined,
+            };
+          })
+          .filter((p): p is ClassParticipant => p !== null)
+      : [];
+    if (participants.length === 0) continue; // una serie sin alumnos no sirve
+
+    const id = typeof s.id === 'string' && s.id ? s.id : key || newId();
+    // El día de semana se re-deriva del día de inicio: es la fuente de verdad, así un
+    // `weekday` inconsistente en un JSON externo no descoloca la serie.
+    const weekday = parseDayKey(s.startDay).getDay();
+    out[id] = {
+      id,
+      weekday,
+      start,
+      startDay: s.startDay,
+      until: typeof s.until === 'string' && s.until ? s.until : undefined,
+      skips: Array.isArray(s.skips) ? s.skips.filter((k): k is string => typeof k === 'string') : undefined,
+      // Si falta el sello, se asume que no se materializó nada: se arranca el día ANTERIOR
+      // al inicio, así el roll-forward recorre la serie entera (y no duplica: saltea las
+      // franjas que ya tienen clase real).
+      materializedUntil:
+        typeof s.materializedUntil === 'string' && s.materializedUntil
+          ? s.materializedUntil
+          : dayKey(addDays(parseDayKey(s.startDay), -1)),
+      template: {
+        type,
+        participants,
+        price: Number(t.price) || 0,
+        duration: typeof t.duration === 'number' && t.duration > 0 ? t.duration : undefined,
+        content: parseStringList(t.content),
+      },
+      createdAt: typeof s.createdAt === 'string' ? s.createdAt : new Date().toISOString(),
+    };
+  }
+  return out;
 }
 
 /** Minutos válidos en un día: 0..1439. Cualquier clave de inicio >= 1440 es imposible. */

@@ -15,6 +15,7 @@ import {
   stateMoneyNote,
 } from '../lib/classMeta';
 import { classRangeLabel, computeDayOverlaps, minutesToLabel } from '../lib/time';
+import { isVirtual, slotsForDay } from '../lib/series';
 import { holidayName } from '../lib/holidays';
 import { useExitAnim } from '../hooks/useExitAnim';
 import { useDialog } from '../state/DialogContext';
@@ -58,6 +59,8 @@ export default function DayAgendaModal({
     ledger,
     deleteClass,
     deleteSeries,
+    deleteSeriesOccurrence,
+    materializeIfVirtual,
     quickCollectClass,
     undoCollectClass,
     removeParticipant,
@@ -66,7 +69,9 @@ export default function DayAgendaModal({
   const dialog = useDialog();
   const { isExiting, removeWithAnim } = useExitAnim();
   const date = parseDayKey(day);
-  const slots = data.days[day];
+  // Clases del día para mostrar: las reales MÁS las repeticiones de las series vivas que
+  // todavía no vencieron. La clase real siempre gana sobre la virtual.
+  const slots = slotsForDay(data, day);
   const totals = dayTotals(data, ledger, day);
   const block = data.blocks[day];
   const holiday = holidayName(day);
@@ -101,6 +106,15 @@ export default function DayAgendaModal({
         deleteSeries(entry.seriesId);
         return;
       }
+      // Solo esta semana: si la repetición todavía es virtual no hay fila que borrar, así
+      // que se anota la fecha como salteada en la regla. `deleteSeriesOccurrence` resuelve
+      // los dos casos (real o virtual) en un solo lugar.
+      const ok = await dialog.confirm('¿Borrar solo esta semana? Las demás repeticiones quedan igual.', {
+        danger: true,
+        confirmLabel: 'Borrar esta semana',
+      });
+      if (ok) deleteSeriesOccurrence(day, start);
+      return;
     }
     const ok = await dialog.confirm('¿Borrar este turno entero? Podés deshacerlo con el botón "Deshacer".', {
       danger: true,
@@ -114,7 +128,11 @@ export default function DayAgendaModal({
   /** Render de una clase cargada (a su hora real). */
   function renderClass(start: number, entry: ClassEntry) {
     const state = classState(entry);
-    const chargeable = isChargeable(entry);
+    // Repetición futura de una serie viva: todavía no es una clase real. No se ofrece cobrar
+    // ni marcar asistencia (la clase no pasó y no tiene plata propia todavía); apenas vence,
+    // el roll-forward la convierte en clase real y vuelven a estar todas las acciones.
+    const virtual = isVirtual(entry);
+    const chargeable = isChargeable(entry) && !virtual;
     const status = classStatus(ledger, day, start);
     const acc = ledger.byClass[classKey(day, start)];
     const hasDiscount = acc ? acc.collected + acc.pending < entry.price - 0.5 : false;
@@ -140,7 +158,11 @@ export default function DayAgendaModal({
               {moneyNote && <span className={`state-note state-note--${moneyNote.kind}`}> — {moneyNote.text}</span>}
             </span>
           )}
-          {entry.seriesId && <span className="serie-tag">serie</span>}
+          {entry.seriesId && (
+            <span className="serie-tag" title={virtual ? 'Turno fijo semanal: esta semana todavía no llegó' : 'Parte de una serie'}>
+              {virtual ? 'fija' : 'serie'}
+            </span>
+          )}
           <span className="day-slot__price">
             {formatCurrency(entry.price)}
             {hasDiscount && <span className="day-slot__discount-flag"> con desc.</span>}
@@ -157,7 +179,15 @@ export default function DayAgendaModal({
                 Deshacer
               </button>
             )}
-            <button className="icon-btn has-tip" onClick={() => onMoveClass(start)} aria-label="Mover" data-tip="Mover">
+            <button
+              className="icon-btn has-tip"
+              onClick={() => {
+                materializeIfVirtual(day, start);
+                onMoveClass(start);
+              }}
+              aria-label="Mover"
+              data-tip="Mover"
+            >
               ↦
             </button>
             <button
@@ -189,12 +219,25 @@ export default function DayAgendaModal({
                 ✂
               </button>
             )}
-            <button className="icon-btn has-tip" onClick={() => onEditClass(start, entry)} aria-label="Editar" data-tip="Editar">
+            <button
+              className="icon-btn has-tip"
+              onClick={() => {
+                // Editar una repetición virtual la vuelve una clase real (copy-on-write):
+                // desde acá tiene su propia plata, asistencia y contenido.
+                const real = materializeIfVirtual(day, start);
+                onEditClass(start, real ?? entry);
+              }}
+              aria-label="Editar"
+              data-tip="Editar"
+            >
               ✎
             </button>
             <button
               className={`icon-btn has-tip${entry.reminder && !entry.reminder.done ? ' icon-btn--reminder' : ''}`}
-              onClick={() => onReminder(start)}
+              onClick={() => {
+                materializeIfVirtual(day, start);
+                onReminder(start);
+              }}
               aria-label="Recordatorio"
               data-tip="Recordatorio"
             >

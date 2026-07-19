@@ -21,6 +21,7 @@ function emptyData(): AgendaData {
     settings: { ...DEFAULT_SETTINGS },
     blocks: {},
     templates: {},
+    series: {},
   };
 }
 

@@ -6,6 +6,7 @@ import { DEFAULT_WORKDAYS, HOURS } from './constants';
 import { parseDayKey } from './date';
 import { classState, isHourBlocked } from './classMeta';
 import { findOverlapStart } from './time';
+import { slotsForDay } from './series';
 
 /** Opciones de días de la semana (lunes primero), value = Date.getDay(). */
 export const WEEKDAY_OPTIONS: Array<{ value: number; label: string }> = [
@@ -87,7 +88,9 @@ export function displayHoursForDays(settings: Settings, data: AgendaData, dayKey
  * [h, h+1) y sin bloqueo). Sirve para el aviso de huecos libres. Solo LEE datos.
  */
 export function freeHourSlots(settings: Settings, data: AgendaData, dayKey: string): number[] {
-  const slots = data.days[dayKey];
+  // Incluye las repeticiones de las series vivas: un turno fijo ocupa la franja aunque esa
+  // semana todavía no exista como clase real.
+  const slots = slotsForDay(data, dayKey);
   const block = data.blocks[dayKey];
   const out: number[] = [];
   for (const h of scheduleHours(settings)) {

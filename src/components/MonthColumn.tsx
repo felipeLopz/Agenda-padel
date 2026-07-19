@@ -1,5 +1,6 @@
 import { useAgenda } from '../state/AgendaContext';
 import { daysInMonth, dayKey, isToday } from '../lib/date';
+import { slotsForDay } from '../lib/series';
 import { WEEKDAY_NAMES } from '../lib/constants';
 import { formatCurrency } from '../lib/format';
 import { monthTotals, dayTotals, dayEntries, classStatus, STATUS_LABEL } from '../lib/money';
@@ -28,7 +29,8 @@ export default function MonthColumn({ year, month, name, onOpenDay }: MonthColum
         {Array.from({ length: numDays }, (_, i) => i + 1).map((dayNum) => {
           const date = new Date(year, month, dayNum);
           const key = dayKey(date);
-          const slots = data.days[key];
+          // Reales + repeticiones de las series vivas (vista anual: muestra el futuro).
+          const slots = slotsForDay(data, key);
           const dTotal = dayTotals(data, ledger, key);
           const entries = dayEntries(slots);
           const holiday = holidayName(key);

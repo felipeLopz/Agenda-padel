@@ -12,6 +12,7 @@ import {
 import type {
   AgendaData,
   ClassEntry,
+  ClassSeries,
   ClassTemplate,
   DayBlock,
   Expense,
@@ -30,7 +31,7 @@ import { newId } from '../lib/id';
 import { addDays, dayKey, parseDayKey } from '../lib/date';
 import { classDuration } from '../lib/classMeta';
 import { findOverlapStart } from '../lib/time';
-import { seriesDayKeys, type RecurrenceInput } from '../lib/recurrence';
+import { dayKeyTime, isVirtual, pendingInstances, slotsForDay, todayKey, toRealEntry } from '../lib/series';
 import { useAuth } from './AuthContext';
 import { isSupabaseConfigured } from '../lib/supabase';
 import {
@@ -107,35 +108,35 @@ interface AgendaContextValue {
   saveTemplate: (input: Omit<ClassTemplate, 'id'>) => string;
   /** Borra una plantilla de turno. */
   deleteTemplate: (id: string) => void;
-  // --- Agenda avanzada (v4) ---
-  /** Crea una serie recurrente a partir de una clase. Devuelve cuántas creó/omitió. */
-  createSeries: (
-    startDay: string,
-    start: number,
-    entry: ClassEntry,
-    recurrence: RecurrenceInput
-  ) => { created: number; skipped: number };
+  // --- Agenda avanzada (v4) / Series vivas (v15) ---
   /**
-   * Convierte un turno YA existente en el primero de una serie recurrente, sin rehacerlo:
-   * le pone un seriesId y crea las repeticiones en las semanas siguientes (misma recurrencia
-   * y mismo copiado que al crear desde cero). Devuelve cuántas creó y cuántas omitió por
-   * solaparse. Si no se puede crear ninguna repetición, no arma la serie (created = 0).
+   * Convierte un turno en SERIE VIVA: se repite todas las semanas, el mismo día y a la
+   * misma hora, desde esa fecha y SIN fin, hasta que el profe la corte. No genera clases
+   * por adelantado: guarda la regla. Devuelve el id de la serie.
    */
-  makeSeriesFromClass: (
-    day: string,
-    start: number,
-    recurrence: RecurrenceInput
-  ) => { created: number; skipped: number };
-  /** Aplica cambios de contenido a toda la serie. */
+  makeSeriesLive: (day: string, start: number) => string | null;
+  /** Aplica cambios de contenido a toda la serie (clases ya materializadas + molde de la regla). */
   updateSeries: (seriesId: string, patch: Partial<ClassEntry>) => void;
-  /** Borra todas las clases de una serie. */
+  /** Borra la serie entera: la regla y todas sus clases materializadas. */
   deleteSeries: (seriesId: string) => void;
   /**
-   * Termina una serie desde una fecha: borra las clases de esa serie a partir de `fromDay`
-   * (inclusive) y DEJA INTACTAS las anteriores, con sus pagos, asistencia e historial.
-   * Devuelve cuántas clases futuras se borraron y cuántas quedaron en el pasado.
+   * Termina una serie desde una fecha: apaga las repeticiones futuras (`until`) y borra las
+   * clases YA materializadas de esa serie desde `fromDay` (inclusive). DEJA INTACTAS las
+   * anteriores, con sus pagos, asistencia e historial.
+   * Devuelve cuántas clases se borraron y cuántas quedaron en el pasado.
    */
   endSeriesFrom: (seriesId: string, fromDay: string) => { removed: number; kept: number };
+  /**
+   * Borra UNA sola repetición. Si ya es una clase real, la borra; si todavía es virtual,
+   * anota la fecha como salteada en la regla (no hay fila que borrar).
+   */
+  deleteSeriesOccurrence: (day: string, start: number) => void;
+  /**
+   * Materializa una repetición virtual como clase real (copy-on-write) y la devuelve.
+   * Si la clase ya era real, no hace nada. Es el único lugar donde una repetición futura
+   * se convierte en fila: lo llaman todas las acciones que tocan una instancia.
+   */
+  materializeIfVirtual: (day: string, start: number) => ClassEntry | undefined;
   /** Mueve una clase a otra franja. Devuelve false si el destino se solapa con otra clase. */
   moveClass: (from: { day: string; start: number }, to: { day: string; start: number }) => boolean;
   /** Define/actualiza el bloqueo de un día. */
@@ -342,6 +343,40 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     prevTheme.current = theme;
   }, [data.settings.theme]);
 
+  /**
+   * Roll-forward de las series vivas (v15): convierte en clases REALES las repeticiones que
+   * ya vencieron, hasta hoy. Es lo que mantiene la plata igual que antes de v15: lo que ya
+   * pasó existe de verdad y se cobra (y si el alumno avisó, el profe la marca cancelada).
+   *
+   * Corre al abrir la app y cada vez que cambia el día (por si queda abierta de noche). Es
+   * idempotente: `pendingInstances` arranca desde el sello de cada serie y además saltea
+   * cualquier franja ya ocupada, así que nunca duplica ni pisa una clase existente.
+   *
+   * NO pasa por `capture`: es mantenimiento automático, no una acción del profe, y no tiene
+   * sentido que aparezca en "Deshacer".
+   */
+  const seriesRules = data.series;
+  useEffect(() => {
+    if (initialLoading) return; // esperar a que la nube decida qué gana (no materializar sobre datos que se van a pisar)
+    if (!seriesRules || Object.keys(seriesRules).length === 0) return;
+    const today = todayKey();
+    const pending = pendingInstances(data, today);
+    const until: Record<string, string> = {};
+    for (const s of Object.values(seriesRules)) {
+      if (dayKeyTime(s.materializedUntil) < dayKeyTime(today)) until[s.id] = today;
+    }
+    if (pending.length === 0 && Object.keys(until).length === 0) return;
+    dispatch({
+      type: 'ROLL_FORWARD',
+      payload: {
+        entries: pending.map((p) => ({ day: p.day, start: p.start, entry: p.entry })),
+        until,
+      },
+    });
+    // `data` entero como dependencia dispararía en bucle: alcanza con las reglas y la carga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesRules, initialLoading]);
+
   // Recalcula todo el estado financiero derivado cuando cambian los datos.
   const ledger = useMemo(() => computeLedger(data), [data]);
 
@@ -515,72 +550,71 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
       deleteTemplate: (id) => dispatch({ type: 'DELETE_TEMPLATE', payload: { id } }),
 
-      createSeries: (startDay, start, entry, recurrence) => {
-        const seriesId = newId();
-        const keys = seriesDayKeys(startDay, recurrence);
-        const dur = classDuration(entry);
-        const placed: PlacedClass[] = [];
-        let skipped = 0;
-        for (const day of keys) {
-          // Se omite la ocurrencia si su rango [inicio, inicio+duración) se pisa con
-          // alguna clase ya existente ese día (nunca se pisan clases).
-          if (findOverlapStart(data.days[day], start, dur) != null) {
-            skipped += 1;
-            continue;
-          }
-          placed.push({ day, start, entry: { ...entry, seriesId } });
-        }
-        if (placed.length) dispatch({ type: 'ADD_CLASSES', payload: { entries: placed } });
-        return { created: placed.length, skipped };
-      },
-
-      makeSeriesFromClass: (day, start, recurrence) => {
-        const slots = data.days[day];
-        const entry = slots?.[String(start)];
-        if (!entry) return { created: 0, skipped: 0 };
-        // Si ya pertenece a una serie no se re-serializa (la UI no ofrece la opción en ese caso).
+      makeSeriesLive: (day, start) => {
+        const entry = data.days[day]?.[String(start)];
+        if (!entry) return null;
+        if (entry.seriesId && data.series[entry.seriesId]) return entry.seriesId; // ya es viva
         const seriesId = entry.seriesId ?? newId();
-        const dur = classDuration(entry);
-        // Cada repetición copia lo MISMO que una recurrente creada desde cero: tipo, alumnos,
-        // precios por alumno, duración, estado y contenido. NO copia los adjuntos ni el
-        // recordatorio (son propios de esa fecha/sesión) y arranca sin pagos (plata independiente).
-        const repeated: ClassEntry = {
-          type: entry.type,
-          participants: entry.participants,
-          price: entry.price,
-          duration: entry.duration,
-          state: entry.state,
-          content: entry.content,
-          seriesId,
+        capture('Turno fijo semanal');
+        // La regla copia lo MISMO que copiaba cada repetición hasta v14: tipo, alumnos,
+        // precios por alumno, duración y contenido. NO copia adjuntos, recordatorio ni
+        // estado: son propios de cada fecha. La plata de cada instancia es independiente.
+        const series: ClassSeries = {
+          id: seriesId,
+          weekday: parseDayKey(day).getDay(),
+          start,
+          startDay: day,
+          // El turno original ya existe como clase real, así que el roll-forward tiene que
+          // arrancar DESPUÉS de ese día (si no, intentaría materializarlo de nuevo; igual
+          // lo saltearía por la franja ocupada, pero así queda explícito).
+          materializedUntil: day,
+          template: {
+            type: entry.type,
+            participants: entry.participants,
+            price: entry.price,
+            duration: entry.duration,
+            content: entry.content,
+          },
+          createdAt: new Date().toISOString(),
         };
-        // Mismas fechas que al crear desde cero: seriesDayKeys incluye el día original primero.
-        const keys = seriesDayKeys(day, recurrence);
-        const placed: PlacedClass[] = [];
-        let skipped = 0;
-        for (const k of keys) {
-          if (k === day) continue; // el turno original ya existe: será la primera clase de la serie
-          // No se crean repeticiones que se pisen con turnos existentes: esas se OMITEN (nunca se pisa).
-          if (findOverlapStart(data.days[k], start, dur) != null) {
-            skipped += 1;
-            continue;
-          }
-          placed.push({ day: k, start, entry: repeated });
+        dispatch({ type: 'ADD_SERIES', payload: series });
+        // El turno original queda como la primera clase de la serie: conserva TODO lo suyo
+        // (pagos, asistencia, adjuntos, recordatorio) y solo gana el seriesId.
+        if (!entry.seriesId) {
+          dispatch({ type: 'UPSERT_CLASS', payload: { day, start, entry: { ...entry, seriesId } } });
         }
-        // Si no se pudo crear ninguna repetición, no se arma la serie (no tendría sentido).
-        if (placed.length === 0) return { created: 0, skipped };
-        capture('Turno convertido en serie');
-        // 1) El turno original pasa a ser la primera clase de la serie: conserva TODO lo suyo
-        //    (incluidos recordatorio, adjuntos y sus pagos) y solo gana el seriesId.
-        dispatch({ type: 'UPSERT_CLASS', payload: { day, start, entry: { ...entry, seriesId } } });
-        // 2) Se agregan las repeticiones (ADD_CLASSES no pisa lo existente: doble red de seguridad).
-        dispatch({ type: 'ADD_CLASSES', payload: { entries: placed } });
-        return { created: placed.length, skipped };
+        return seriesId;
       },
 
-      updateSeries: (seriesId, patch) => dispatch({ type: 'UPDATE_SERIES', payload: { seriesId, patch } }),
+      updateSeries: (seriesId, patch) => {
+        dispatch({ type: 'UPDATE_SERIES', payload: { seriesId, patch } });
+        // Si es una serie viva, el molde también se actualiza para que las repeticiones
+        // futuras salgan con los cambios.
+        if (data.series[seriesId]) {
+          const current = data.series[seriesId];
+          dispatch({
+            type: 'PATCH_SERIES',
+            payload: {
+              seriesId,
+              patch: {
+                template: {
+                  ...current.template,
+                  ...(patch.type !== undefined ? { type: patch.type } : {}),
+                  ...(patch.participants !== undefined ? { participants: patch.participants } : {}),
+                  ...(patch.price !== undefined ? { price: patch.price } : {}),
+                  ...(patch.duration !== undefined ? { duration: patch.duration } : {}),
+                  ...(patch.content !== undefined ? { content: patch.content } : {}),
+                },
+              },
+            },
+          });
+        }
+      },
+
       deleteSeries: (seriesId) => {
         capture('Serie borrada');
         dispatch({ type: 'DELETE_SERIES', payload: { seriesId } });
+        dispatch({ type: 'DELETE_SERIES_RULE', payload: { seriesId } });
       },
 
       endSeriesFrom: (seriesId, fromDay) => {
@@ -598,10 +632,41 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
             else kept += 1;
           }
         }
-        if (removed === 0) return { removed: 0, kept };
         capture('Serie terminada desde una fecha');
-        dispatch({ type: 'END_SERIES_FROM', payload: { seriesId, fromDay } });
+        // 1) Apagar las repeticiones futuras de la regla (si es una serie viva). Esto solo
+        //    toca la regla: no borra ni modifica ninguna clase ya dictada.
+        if (data.series[seriesId]) {
+          dispatch({ type: 'PATCH_SERIES', payload: { seriesId, patch: { until: fromDay } } });
+        }
+        // 2) Borrar las clases YA materializadas desde el corte. Las anteriores no se tocan.
+        if (removed > 0) dispatch({ type: 'END_SERIES_FROM', payload: { seriesId, fromDay } });
         return { removed, kept };
+      },
+
+      deleteSeriesOccurrence: (day, start) => {
+        const real = data.days[day]?.[String(start)];
+        capture('Repetición borrada');
+        if (real) {
+          dispatch({ type: 'DELETE_CLASS', payload: { day, start } });
+          return;
+        }
+        // Todavía es virtual: no hay fila que borrar, se anota la fecha como salteada.
+        const virtual = slotsForDay(data, day)?.[String(start)];
+        if (virtual?.seriesId) {
+          dispatch({ type: 'SKIP_SERIES_DAY', payload: { seriesId: virtual.seriesId, day } });
+        }
+      },
+
+      materializeIfVirtual: (day, start) => {
+        const real = data.days[day]?.[String(start)];
+        if (real) return real;
+        const virtual = slotsForDay(data, day)?.[String(start)];
+        if (!virtual || !isVirtual(virtual)) return undefined;
+        // Copy-on-write: la repetición pasa a ser una clase real e independiente. Desde acá
+        // tiene su propia plata, asistencia, adjuntos y recordatorio, como cualquier clase.
+        const entry = toRealEntry(virtual);
+        dispatch({ type: 'UPSERT_CLASS', payload: { day, start, entry } });
+        return entry;
       },
 
       moveClass: (from, to) => {
@@ -611,7 +676,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         // No se permite mover a un rango que se solape con otra clase (se excluye la propia
         // franja si el destino es el mismo día). Devuelve false para que el llamador avise.
         const excludeStart = from.day === to.day ? from.start : undefined;
-        if (findOverlapStart(data.days[to.day], to.start, classDuration(entry), excludeStart) != null) return false;
+        // El destino se compara contra reales + repeticiones virtuales: no se puede mover
+        // una clase encima de un turno fijo aunque esa semana todavía no exista como fila.
+        if (findOverlapStart(slotsForDay(data, to.day), to.start, classDuration(entry), excludeStart) != null)
+          return false;
         capture('Clase movida');
         dispatch({ type: 'MOVE_CLASS', payload: { from, to } });
         return true;

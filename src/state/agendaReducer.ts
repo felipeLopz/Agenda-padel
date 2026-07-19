@@ -7,6 +7,7 @@ import type {
   Pack,
   Payment,
   PaymentMethod,
+  ClassSeries,
   Prices,
   Reminder,
   Settings,
@@ -35,6 +36,13 @@ export type AgendaAction =
   | { type: 'DELETE_SERIES'; payload: { seriesId: string } }
   | { type: 'END_SERIES_FROM'; payload: { seriesId: string; fromDay: string } }
   | { type: 'UPDATE_SERIES'; payload: { seriesId: string; patch: Partial<ClassEntry> } }
+  // --- Series vivas (v15): la serie como REGLA ---
+  | { type: 'ADD_SERIES'; payload: ClassSeries }
+  | { type: 'PATCH_SERIES'; payload: { seriesId: string; patch: Partial<ClassSeries> } }
+  | { type: 'DELETE_SERIES_RULE'; payload: { seriesId: string } }
+  | { type: 'SKIP_SERIES_DAY'; payload: { seriesId: string; day: string } }
+  /** Materializa repeticiones vencidas y adelanta el sello de cada serie. */
+  | { type: 'ROLL_FORWARD'; payload: { entries: PlacedClass[]; until: Record<string, string> } }
   | { type: 'SET_BLOCK'; payload: { day: string; block: DayBlock } }
   | { type: 'REMOVE_BLOCK'; payload: { day: string } }
   | { type: 'UPSERT_STUDENT'; payload: Student }
@@ -241,6 +249,51 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
         if (Object.keys(kept).length > 0) days[day] = kept;
       }
       return { ...state, days };
+    }
+
+    // --- Series vivas (v15) -------------------------------------------------
+    // Estas acciones tocan SOLO la regla (`series`). Nunca `payments` ni las clases
+    // anteriores: la plata y el historial no dependen de la regla, sino de las clases
+    // reales que ya se materializaron.
+
+    case 'ADD_SERIES':
+      return { ...state, series: { ...state.series, [action.payload.id]: action.payload } };
+
+    case 'PATCH_SERIES': {
+      const { seriesId, patch } = action.payload;
+      const current = state.series[seriesId];
+      if (!current) return state;
+      return { ...state, series: { ...state.series, [seriesId]: { ...current, ...patch, id: current.id } } };
+    }
+
+    case 'DELETE_SERIES_RULE': {
+      const series = { ...state.series };
+      delete series[action.payload.seriesId];
+      return { ...state, series };
+    }
+
+    case 'SKIP_SERIES_DAY': {
+      // Borrar UNA repetición futura: no hay fila que borrar, así que se anota la fecha.
+      const { seriesId, day } = action.payload;
+      const current = state.series[seriesId];
+      if (!current) return state;
+      if (current.skips?.includes(day)) return state;
+      const skips = [...(current.skips ?? []), day];
+      return { ...state, series: { ...state.series, [seriesId]: { ...current, skips } } };
+    }
+
+    case 'ROLL_FORWARD': {
+      // Convierte en filas reales las repeticiones ya vencidas y adelanta el sello de cada
+      // serie. Reusa la misma alta en lote que el resto: NO pisa lo existente.
+      const { entries, until } = action.payload;
+      let next = state;
+      if (entries.length > 0) next = agendaReducer(next, { type: 'ADD_CLASSES', payload: { entries } });
+      const series = { ...next.series };
+      for (const [id, day] of Object.entries(until)) {
+        const current = series[id];
+        if (current) series[id] = { ...current, materializedUntil: day };
+      }
+      return { ...next, series };
     }
 
     case 'END_SERIES_FROM': {

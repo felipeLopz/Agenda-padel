@@ -9,6 +9,7 @@ import { participantName } from '../lib/students';
 import { classDuration, classState, isHourBlocked, stateMoneyNote } from '../lib/classMeta';
 import { classRangeLabel, computeDayOverlaps, minutesToLabel, nextFreeStart, snapMinutes } from '../lib/time';
 import { holidayName } from '../lib/holidays';
+import { isVirtual, slotsForDay } from '../lib/series';
 import { useSlideDirection } from '../hooks/useSlideDirection';
 import { useDialog } from '../state/DialogContext';
 import type { ClassEntry } from '../types';
@@ -40,7 +41,7 @@ export default function WeeklyView({
   onOpenCopyWeek,
   onBlockDay,
 }: WeeklyViewProps) {
-  const { data, ledger, moveClass } = useAgenda();
+  const { data, ledger, moveClass, materializeIfVirtual } = useAgenda();
   const dialog = useDialog();
   const monday = startOfWeek(anchor);
   const slideDir = useSlideDirection(monday.getTime());
@@ -54,7 +55,9 @@ export default function WeeklyView({
   let minMin = sh * 60;
   let maxMin = (eh + 1) * 60; // eh es la última hora de INICIO; el día llega hasta eh+1
   for (const key of weekKeys) {
-    const slots = data.days[key];
+    // Incluye las repeticiones de las series vivas: si el turno fijo cae fuera del horario
+    // configurado, la grilla igual se agranda para no esconderlo.
+    const slots = slotsForDay(data, key);
     if (slots) {
       for (const [startStr, entry] of Object.entries(slots)) {
         const st = Number(startStr);
@@ -85,7 +88,7 @@ export default function WeeklyView({
   // Solapamientos por día (marca informativa; el modelo nuevo no deja crear/mover a un rango
   // ocupado, pero pueden existir en datos migrados de versiones viejas).
   const overlapsByDay: Record<string, Set<number>> = {};
-  for (const key of weekKeys) overlapsByDay[key] = computeDayOverlaps(data.days[key]);
+  for (const key of weekKeys) overlapsByDay[key] = computeDayOverlaps(slotsForDay(data, key));
 
   const [showFree, setShowFree] = useState(false);
   // Origen del arrastre (para reprogramar moviendo).
@@ -112,11 +115,13 @@ export default function WeeklyView({
     if (!drag) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const to = { day, start: minutesAt(e.clientY, rect.top) };
-    const entry = data.days[drag.day]?.[String(drag.start)];
+    // Si se arrastra una repetición virtual, primero se vuelve clase real: recién ahí se
+    // puede mover como cualquier otra (y queda como excepción de esa semana).
+    const entry = data.days[drag.day]?.[String(drag.start)] ?? materializeIfVirtual(drag.day, drag.start);
     const ok = moveClass(drag, to);
     if (!ok && entry) {
       const excludeStart = to.day === drag.day ? drag.start : undefined;
-      const suggestion = nextFreeStart(data.days[to.day], to.start, classDuration(entry), excludeStart);
+      const suggestion = nextFreeStart(slotsForDay(data, to.day), to.start, classDuration(entry), excludeStart);
       void dialog.alert(
         'No se puede: se solapa con otra clase.' +
           (suggestion != null ? ` Probá desde las ${minutesToLabel(suggestion)}.` : '')
@@ -190,7 +195,7 @@ export default function WeeklyView({
 
           {weekDays.map((date) => {
             const key = dayKey(date);
-            const slots = data.days[key];
+            const slots = slotsForDay(data, key);
             const block = data.blocks[key];
             const entries = slots ? Object.entries(slots) : [];
             return (
@@ -242,15 +247,20 @@ export default function WeeklyView({
                       key={start}
                       className={`cal-event cal-event--${entry.type} cal-event--${status} cal-event--state-${state}${
                         overlapped ? ' cal-event--overlap' : ''
-                      }${blockedStart ? ' cal-event--on-block' : ''}`}
+                      }${blockedStart ? ' cal-event--on-block' : ''}${
+                        isVirtual(entry) ? ' cal-event--fija' : ''
+                      }`}
                       style={{ top, height }}
                       draggable
                       onDragStart={() => setDrag({ day: key, start })}
                       onDragEnd={() => setDrag(null)}
                       onClick={(e) => {
                         e.stopPropagation();
-                        onOpenEditClass(key, start, entry);
+                        // Abrir para editar una repetición virtual la vuelve clase real.
+                        const real = materializeIfVirtual(key, start);
+                        onOpenEditClass(key, start, real ?? entry);
                       }}
+                      title={isVirtual(entry) ? 'Turno fijo semanal' : undefined}
                     >
                       {overlapped && (
                         <span className="cal-event__overlap" title="Se solapa en el horario con otra clase del día">

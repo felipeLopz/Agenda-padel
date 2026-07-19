@@ -173,6 +173,54 @@ export interface ClassEntry {
   // Nota: ya NO existe `paid`. El estado de cobro se deriva de los pagos.
 }
 
+/**
+ * Molde de la clase que repite una serie viva: lo mismo que hasta v14 copiaba cada
+ * repetición generada. NO lleva adjuntos ni recordatorio (son propios de cada fecha),
+ * ni estado (cada instancia se cancela por su cuenta).
+ */
+export interface SeriesTemplate {
+  type: ClassType;
+  participants: ClassParticipant[];
+  price: number;
+  duration?: number;
+  content?: string[];
+}
+
+/**
+ * Serie viva (v15): un turno fijo semanal guardado como REGLA, no como miles de clases
+ * generadas por adelantado. Se repite el mismo día de semana y a la misma hora, desde
+ * `startDay`, para siempre, hasta que el profe la corte con `until`.
+ *
+ * Cómo convive con la plata: las repeticiones YA VENCIDAS se materializan como clases
+ * reales hasta hoy (ver rollForwardSeries en lib/series.ts), así que el pasado son filas
+ * de verdad y el cálculo de plata no cambia en nada. Las repeticiones FUTURAS son
+ * virtuales: se muestran en la agenda pero no existen como filas y no generan deuda.
+ */
+export interface ClassSeries {
+  id: string;
+  /** Día de la semana en que cae (0=domingo … 6=sábado). Se deriva de `startDay`. */
+  weekday: number;
+  /** Hora de inicio en minutos desde la medianoche (v10). */
+  start: number;
+  /** Primera fecha de la serie (inclusive). */
+  startDay: DayKey;
+  /**
+   * Corte: NO hay repeticiones desde este día en adelante (inclusive). Ausente = la serie
+   * está viva, sin fin. Cortar solo apaga el futuro: nunca borra lo anterior.
+   */
+  until?: DayKey;
+  /** Repeticiones sueltas borradas a mano (no existe fila que borrar: se saltea la fecha). */
+  skips?: DayKey[];
+  /**
+   * Hasta qué día ya se materializaron las repeticiones vencidas. Hace que el
+   * roll-forward sea idempotente: nunca vuelve a mirar lo que ya resolvió.
+   */
+  materializedUntil: DayKey;
+  /** Qué clase se repite. */
+  template: SeriesTemplate;
+  createdAt: string;
+}
+
 /** Bloqueo de disponibilidad de un día: día completo y/o algunas horas. */
 export interface DayBlock {
   /** Todo el día bloqueado. */
@@ -317,6 +365,8 @@ export interface AgendaData {
   blocks: Record<DayKey, DayBlock>;
   /** Plantillas de turno reusables (v12). No afectan la plata: solo prellenan el formulario. */
   templates: Record<string, ClassTemplate>;
+  /** Series vivas (v15): turnos fijos semanales guardados como regla. */
+  series: Record<string, ClassSeries>;
 }
 
 /** Franja (día + hora de inicio en minutos) que se crea o edita en el formulario de clase. */

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAgenda } from '../state/AgendaContext';
+import { slotsForDay } from '../lib/series';
 import { CLASS_TYPE_LABEL } from '../lib/constants';
 import { dayKey } from '../lib/date';
 import { formatCurrency } from '../lib/format';
@@ -56,7 +57,10 @@ export default function TodayView({ onOpenClass, onNewClass }: TodayViewProps) {
       window.removeEventListener('focus', refresh);
     };
   }, []);
-  const classes = dayEntries(data.days[today]); // ya ordenadas por hora de inicio
+  // Incluye las repeticiones de las series vivas. Ojo: hoy ya suele estar materializado
+  // por el roll-forward, pero se pasa por slotsForDay igual, por si el turno fijo se creó
+  // recién hoy y todavía no se materializó.
+  const classes = dayEntries(slotsForDay(data, today)); // ya ordenadas por hora de inicio
   // Próximo turno: el primero (no cancelado) que todavía no terminó (en curso o por venir).
   const nextStart = classes.find((c) => isChargeable(c.entry) && c.start + classDuration(c.entry) > nowMin)?.start;
   // Huecos libres del día (horas del horario laboral sin clase ni bloqueo), para meter a alguien.
