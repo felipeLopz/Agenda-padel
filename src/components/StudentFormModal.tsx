@@ -6,7 +6,14 @@ import { newId } from '../lib/id';
 import { fileToCompressedDataURL } from '../lib/image';
 import { PADEL_CATEGORIES, CATEGORY_LABELS, PADEL_RANKS, RANK_LABELS } from '../lib/students';
 import DiscountEditor from './DiscountEditor';
+import NumberInput from './NumberInput';
 import type { Discount, PadelCategory, PadelRank, Student } from '../types';
+
+/** Mes actual como "YYYY-MM" (valor por defecto de "desde qué mes" rige el plan mensual). */
+function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 interface StudentFormModalProps {
   /** Ficha a editar; null para alta. */
@@ -33,6 +40,10 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
   const [tags, setTags] = useState<string[]>(student?.tags ?? []);
   const [tagInput, setTagInput] = useState('');
   const [discount, setDiscount] = useState<Discount | undefined>(student?.discount);
+  // Cómo paga (v16): por clase (como siempre) o mensual (cuota fija por mes).
+  const [billingMode, setBillingMode] = useState<'clase' | 'mensual'>(student?.billing ? 'mensual' : 'clase');
+  const [monthlyAmount, setMonthlyAmount] = useState<number>(student?.billing?.amount ?? 0);
+  const [monthlySince, setMonthlySince] = useState<string>(student?.billing?.since ?? currentMonthKey());
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handlePhoto(e: ChangeEvent<HTMLInputElement>) {
@@ -74,6 +85,17 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
       photo,
       tags,
       discount: discount && discount.value > 0 ? discount : undefined,
+      // Plan de cobro: mensual solo si se eligió y tiene monto; si no, queda por clase.
+      // Se conserva `amountByMonth` (importes puntuales de meses ya cobrados) si ya existía.
+      billing:
+        billingMode === 'mensual' && monthlyAmount > 0
+          ? {
+              mode: 'mensual',
+              amount: Number(monthlyAmount),
+              since: /^\d{4}-\d{2}$/.test(monthlySince) ? monthlySince : currentMonthKey(),
+              amountByMonth: student?.billing?.amountByMonth,
+            }
+          : undefined,
       active: student?.active ?? true,
       createdAt: student?.createdAt ?? new Date().toISOString(),
     };
@@ -206,6 +228,44 @@ export default function StudentFormModal({ student, onClose, onSaved }: StudentF
         <div className="class-form__row">
           <label>Descuento fijo (se aplica a todas sus clases)</label>
           <DiscountEditor value={discount} onChange={setDiscount} hint="permanente" />
+        </div>
+
+        <div className="class-form__row">
+          <label>Cómo paga</label>
+          <div className="segmented">
+            <button
+              type="button"
+              className={`segmented__option${billingMode === 'clase' ? ' segmented__option--active' : ''}`}
+              onClick={() => setBillingMode('clase')}
+            >
+              Por clase
+            </button>
+            <button
+              type="button"
+              className={`segmented__option${billingMode === 'mensual' ? ' segmented__option--active' : ''}`}
+              onClick={() => setBillingMode('mensual')}
+            >
+              Por mes
+            </button>
+          </div>
+          {billingMode === 'mensual' && (
+            <div className="billing-fields">
+              <div className="class-form__row class-form__row--split">
+                <div>
+                  <label>Cuota mensual</label>
+                  <NumberInput value={monthlyAmount} onChange={setMonthlyAmount} placeholder="Ej: 133000" />
+                </div>
+                <div>
+                  <label>Desde el mes</label>
+                  <input type="month" value={monthlySince} onChange={(e) => setMonthlySince(e.target.value)} />
+                </div>
+              </div>
+              <span className="discount-editor__hint">
+                La cuota cubre todas sus clases del mes, caigan 4 o 5. Los meses anteriores al elegido se siguen
+                cobrando por clase, sin cambios.
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="class-form__row">

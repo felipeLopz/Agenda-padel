@@ -15,6 +15,11 @@
 // v14 (Tipo Doble): se agrega el tipo de clase 'doble' (2 alumnos, precio propio por alumno) y
 //   el precio por defecto `prices.doble`. Aditivo: las clases viejas conservan su tipo
 //   (individual/grupal), no se convierten. El precio doble se completa con el default si falta.
+// v16 (Pago mensual): el alumno puede tener `billing` (plan mensual: cuota fija por mes que
+//   cubre todas sus clases de ese mes) y los pagos suman el tipo 'mes' con su `period`. Aditivo:
+//   sin `billing` el alumno paga por CLASE, como siempre, y los importes ya registrados no se
+//   tocan. `since` hace que los meses anteriores al alta se sigan calculando por clase. La cuota
+//   se REPARTE entre las clases del mes en computeLedger, así ninguna función de deuda cambia.
 // v15 (Recurrencia viva): se agrega `series` (turnos fijos semanales guardados como REGLA,
 //   sin fecha de fin, que se muestran solos a medida que se navega la agenda). Aditivo: los
 //   datos viejos quedan con `series = {}` y NO se pierde nada. Las series del sistema anterior
@@ -58,6 +63,7 @@ import type {
   Reminder,
   Settings,
   Student,
+  StudentBilling,
   StudentLevel,
   AgendaData,
 } from '../types';
@@ -130,6 +136,33 @@ function parseClassRef(raw: unknown): { day: string; start: number } | undefined
   if (Number.isFinite(start)) return { day: r.day, start }; // formato nuevo (minutos)
   const hour = Number(r.hour);
   return { day: r.day, start: (Number.isFinite(hour) ? hour : 0) * 60 }; // formato viejo (hora → minutos)
+}
+
+/**
+ * Sanea el plan de cobro (v16). Ausente/ inválido → undefined (el alumno paga por CLASE, como
+ * siempre). Solo existe el modo 'mensual', con su cuota y el mes desde el que rige.
+ */
+function parseBilling(raw: unknown): StudentBilling | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const b = raw as Partial<StudentBilling>;
+  if (b.mode !== 'mensual') return undefined;
+  const amount = Number(b.amount);
+  if (!Number.isFinite(amount) || amount < 0) return undefined;
+  // `since` debe ser "YYYY-MM"; si no viene, se asume el mes de hoy (el plan rige desde ahora).
+  const since =
+    typeof b.since === 'string' && /^\d{4}-\d{2}$/.test(b.since)
+      ? b.since
+      : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  let amountByMonth: Record<string, number> | undefined;
+  if (b.amountByMonth && typeof b.amountByMonth === 'object') {
+    amountByMonth = {};
+    for (const [k, v] of Object.entries(b.amountByMonth as Record<string, unknown>)) {
+      const n = Number(v);
+      if (/^\d{4}-\d{2}$/.test(k) && Number.isFinite(n) && n >= 0) amountByMonth[k] = n;
+    }
+    if (Object.keys(amountByMonth).length === 0) amountByMonth = undefined;
+  }
+  return { mode: 'mensual', amount, since, amountByMonth };
 }
 
 /** Sanea un descuento externo; devuelve undefined si no es válido. */
@@ -248,6 +281,7 @@ function normalizeStudent(raw: unknown): Student | null {
     tags: Array.isArray(s.tags) ? s.tags.filter((t): t is string => typeof t === 'string') : [],
     active: s.active !== false, // por defecto activo
     discount: parseDiscount(s.discount),
+    billing: parseBilling(s.billing),
     objectives: parseObjectives(s.objectives),
     progressNotes: parseProgressNotes(s.progressNotes),
     attachments: parseAttachments(s.attachments),
@@ -427,7 +461,11 @@ function normalizePayments(raw: unknown, validMethodIds: Set<string>): Record<st
     if (!Number.isFinite(amount)) continue;
     const id = typeof p.id === 'string' && p.id ? p.id : newId();
     const methodId = typeof p.methodId === 'string' && validMethodIds.has(p.methodId) ? p.methodId : MIGRATED_METHOD_ID;
-    const kind = p.kind === 'pack' || p.kind === 'ajuste' ? p.kind : 'clase';
+    const kind =
+      p.kind === 'pack' || p.kind === 'ajuste' || p.kind === 'mes' ? p.kind : 'clase';
+    // Período del cobro del mes (v16): "YYYY-MM". Solo se conserva en los pagos de tipo 'mes'.
+    const period =
+      kind === 'mes' && typeof p.period === 'string' && /^\d{4}-\d{2}$/.test(p.period) ? p.period : undefined;
     out[id] = {
       id,
       studentId: p.studentId,
@@ -438,6 +476,7 @@ function normalizePayments(raw: unknown, validMethodIds: Set<string>): Record<st
       kind,
       // Referencia a la clase: se convierte hora→minutos si venía en el formato viejo.
       classRef: parseClassRef(p.classRef),
+      period,
       packId: typeof p.packId === 'string' ? p.packId : undefined,
     };
   }
@@ -517,6 +556,10 @@ function migrateV2toV3(v2: V2Intermediate, rawSource: unknown): AgendaData {
     theme: rawSettings.theme === 'light' ? 'light' : 'dark',
     lastExportAt: typeof rawSettings.lastExportAt === 'string' ? rawSettings.lastExportAt : undefined,
     soundOnCollect: rawSettings.soundOnCollect === true,
+    monthlyNoticeDismissed:
+      typeof rawSettings.monthlyNoticeDismissed === 'string' && /^\d{4}-\d{2}$/.test(rawSettings.monthlyNoticeDismissed)
+        ? rawSettings.monthlyNoticeDismissed
+        : undefined,
   };
 
   const packs = normalizePacks(src.packs);

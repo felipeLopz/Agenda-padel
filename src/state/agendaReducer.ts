@@ -51,6 +51,7 @@ export type AgendaAction =
   | { type: 'DELETE_PAYMENT'; payload: { id: string } }
   | { type: 'DELETE_PAYMENTS_BY_CLASS'; payload: { day: string; start: number } }
   | { type: 'DELETE_PAYMENTS_BY_CLASS_STUDENT'; payload: { day: string; start: number; studentId: string } }
+  | { type: 'DELETE_MONTH_PAYMENT'; payload: { studentId: string; period: string } }
   | { type: 'ADD_PACK'; payload: { pack: Pack; payment: Payment } }
   | { type: 'DELETE_PACK'; payload: { id: string } }
   | { type: 'UPSERT_EXPENSE'; payload: Expense }
@@ -381,6 +382,16 @@ export function agendaReducer(state: AgendaData, action: AgendaAction): AgendaDa
       const payments = { ...state.payments };
       for (const [id, pay] of Object.entries(payments)) {
         if (pay.classRef && pay.classRef.day === day && pay.classRef.start === start) delete payments[id];
+      }
+      return { ...state, payments };
+    }
+
+    case 'DELETE_MONTH_PAYMENT': {
+      // Deshacer el cobro del mes de un alumno: borra sus pagos tipo 'mes' de ese período.
+      const { studentId, period } = action.payload;
+      const payments = { ...state.payments };
+      for (const [id, pay] of Object.entries(payments)) {
+        if (pay.studentId === studentId && pay.kind === 'mes' && pay.period === period) delete payments[id];
       }
       return { ...state, payments };
     }

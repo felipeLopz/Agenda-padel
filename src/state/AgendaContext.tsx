@@ -23,6 +23,7 @@ import type {
   Reminder,
   Settings,
   Student,
+  StudentBilling,
 } from '../types';
 import { agendaReducer, type PlacedClass } from './agendaReducer';
 import { exportToFile, importFromFile, loadData, saveData } from '../lib/storage';
@@ -97,6 +98,15 @@ interface AgendaContextValue {
   collectClassStudent: (day: string, start: number, studentId: string) => void;
   /** Revierte el cobro rápido de UN alumno en una clase (borra solo SUS pagos atados a esa clase). */
   undoCollectClassStudent: (day: string, start: number, studentId: string) => void;
+  /**
+   * Cobra el MES de un alumno mensual (v16): registra un pago 'mes' del período dado, que
+   * salda todas sus clases de ese mes. `amount` es la cuota (editable). No calcula por clase.
+   */
+  collectMonth: (studentId: string, period: string, amount: number, methodId?: string) => void;
+  /** Deshace el cobro del mes de un alumno (borra sus pagos 'mes' de ese período). */
+  undoCollectMonth: (studentId: string, period: string) => void;
+  /** Define/quita el plan de cobro del alumno (mensual o, con null, vuelve a pago por clase). */
+  setBilling: (studentId: string, billing: StudentBilling | null) => void;
   /** Crea un pack (bono prepago) + su pago de compra. */
   addPack: (input: { studentId: string; totalClasses: number; price: number; date: string; methodId: string }) => void;
   deletePack: (id: string) => void;
@@ -506,6 +516,38 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
       undoCollectClassStudent: (day, start, studentId) =>
         dispatch({ type: 'DELETE_PAYMENTS_BY_CLASS_STUDENT', payload: { day, start, studentId } }),
+
+      collectMonth: (studentId, period, amount, methodId) => {
+        // Cobro del MES (v16): un pago 'mes' atado a su período que salda todas las clases
+        // del alumno de ese mes. No calcula deuda por clase: el importe es la cuota (editable).
+        if (amount <= 0) return;
+        dispatch({
+          type: 'ADD_PAYMENT',
+          payload: {
+            id: newId(),
+            studentId,
+            amount,
+            methodId: methodId ?? data.settings.defaultMethodId,
+            date: todayISO(),
+            concept: `Cobro del mes (${period})`,
+            kind: 'mes',
+            period,
+          },
+        });
+        playCollectSound(data.settings.soundOnCollect ?? false);
+        haptic();
+      },
+
+      undoCollectMonth: (studentId, period) =>
+        dispatch({ type: 'DELETE_MONTH_PAYMENT', payload: { studentId, period } }),
+
+      setBilling: (studentId, billing) => {
+        const student = data.students[studentId];
+        if (!student) return;
+        // Cambia SOLO el plan de cobro de la ficha. No toca clases ni pagos ya registrados.
+        capture(billing ? 'Plan mensual activado' : 'Vuelve a pago por clase');
+        dispatch({ type: 'UPSERT_STUDENT', payload: { ...student, billing: billing ?? undefined } });
+      },
 
       addPack: (input) => {
         const packId = newId();

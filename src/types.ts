@@ -98,6 +98,12 @@ export interface Student {
   active: boolean;
   /** Descuento fijo permanente de la ficha (opcional). */
   discount?: Discount;
+  /**
+   * Cómo paga el alumno (v16). Ausente = paga por CLASE, como siempre (nada cambia).
+   * Presente con mode 'mensual' = paga una CUOTA fija por mes que cubre todas sus clases
+   * de ese mes, sin importar cuántas caigan. Ver lib/money.ts (monthlyFeeFor / reparto).
+   */
+  billing?: StudentBilling;
   /** Objetivos del alumno con seguimiento (v5). */
   objectives?: Objective[];
   /** Notas de evolución del alumno, línea de tiempo (v5). */
@@ -106,6 +112,23 @@ export interface Student {
   attachments?: Attachment[];
   /** Alta de la ficha (ISO). */
   createdAt: string;
+}
+
+/**
+ * Cómo paga un alumno (v16). Solo existe el modo 'mensual' por ahora; la ausencia del
+ * campo `billing` en la ficha significa "paga por clase" (el modelo de siempre).
+ */
+export interface StudentBilling {
+  mode: 'mensual';
+  /** Cuota mensual vigente (precio final acordado; los descuentos de ficha NO se aplican encima). */
+  amount: number;
+  /** Desde qué mes rige el plan, "YYYY-MM". Los meses ANTERIORES se calculan por clase, como antes. */
+  since: string;
+  /**
+   * Importe puntual de un mes que fue distinto a la cuota vigente, "YYYY-MM" → monto. Congela
+   * lo cobrado ese mes: un aumento de la cuota no re-precia meses viejos. Opcional.
+   */
+  amountByMonth?: Record<string, number>;
 }
 
 /**
@@ -274,13 +297,18 @@ export interface Payment {
   methodId: string;
   /** Concepto libre para el recibo. */
   concept?: string;
-  /** Origen del pago: cobro de clase(s), compra de pack, o ajuste manual. */
-  kind: 'clase' | 'pack' | 'ajuste';
+  /** Origen del pago: cobro de clase(s), cobro del mes, compra de pack, o ajuste manual. */
+  kind: 'clase' | 'mes' | 'pack' | 'ajuste';
   /**
    * Si vino del cobro rápido de una clase puntual (para poder deshacerlo). Referencia
    * la clase por su día y su hora de inicio en minutos (v10; antes era la hora entera).
    */
   classRef?: { day: DayKey; start: number };
+  /**
+   * Si es el cobro del MES de un alumno mensual (v16): el mes cubierto, "YYYY-MM". Ese pago
+   * salda todas las clases del alumno en ese mes (ver computeLedger). Permite deshacerlo.
+   */
+  period?: string;
   /** Si es la compra de un pack. */
   packId?: string;
 }
@@ -326,6 +354,8 @@ export interface Settings {
   lastExportAt?: string;
   /** Sonido breve al cobrar una clase. Apagado por defecto. (Tanda 3 de efectos) */
   soundOnCollect?: boolean;
+  /** Mes "YYYY-MM" cuyo recordatorio de cobros se pospuso (para no volver a mostrarlo). (v16) */
+  monthlyNoticeDismissed?: string;
 }
 
 /**

@@ -31,6 +31,8 @@ import RemindersPanel from './components/RemindersPanel';
 import FabMenu from './components/FabMenu';
 import Confetti from './components/Confetti';
 import { useReminders } from './hooks/useReminders';
+import { useMonthlyCollection } from './hooks/useMonthlyCollection';
+import MonthCollectModal from './components/MonthCollectModal';
 import { DialogProvider } from './state/DialogContext';
 import { useAgenda } from './state/AgendaContext';
 import { dayKey, startOfWeek } from './lib/date';
@@ -39,8 +41,11 @@ import type { ClassEntry, ClassFormTarget, Student } from './types';
 
 /** Orquesta qué vista y qué modal está abierto; el estado de datos vive en AgendaContext. */
 function AppShell() {
-  const { initialLoading, data } = useAgenda();
+  const { initialLoading, data, setSettings } = useAgenda();
   const { due, upcoming, dueCount } = useReminders();
+  // Cobros del mes (v16): recordatorio del 1° derivado del ledger.
+  const monthly = useMonthlyCollection();
+  const monthlyPending = monthly.dismissed ? 0 : monthly.pendingCount;
   // Vista inicial: la última usada en este dispositivo (restaurada al recargar) o "Hoy".
   const [view, setView] = useState<ViewMode>(() => loadUiState().view ?? 'hoy');
   const [reminderTarget, setReminderTarget] = useState<{ day: string; start: number } | null>(null);
@@ -63,6 +68,7 @@ function AppShell() {
   const [payTarget, setPayTarget] = useState<{ studentId: string; classRef: { day: string; start: number } } | null>(
     null
   );
+  const [monthCollectTarget, setMonthCollectTarget] = useState<{ studentId: string; period: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ day: string; start: number } | null>(null);
   const [duplicateTarget, setDuplicateTarget] = useState<{ day: string; start: number } | null>(null);
   const [copyWeekMonday, setCopyWeekMonday] = useState<Date | null>(null);
@@ -89,7 +95,7 @@ function AppShell() {
         onChangeYear={setYear}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
-        reminderCount={dueCount}
+        reminderCount={dueCount + monthlyPending}
         onOpenReminders={() => setRemindersOpen(true)}
       />
 
@@ -227,7 +233,27 @@ function AppShell() {
       )}
 
       {remindersOpen && (
-        <RemindersPanel due={due} upcoming={upcoming} onOpenDay={setOpenDay} onClose={() => setRemindersOpen(false)} />
+        <RemindersPanel
+          due={due}
+          upcoming={upcoming}
+          monthly={monthly}
+          onOpenDay={setOpenDay}
+          onCollectMonth={(studentId, period) => setMonthCollectTarget({ studentId, period })}
+          onOpenStudent={(studentId) => {
+            setProfileId(studentId);
+            setRemindersOpen(false);
+          }}
+          onDismissMonthly={() => setSettings({ ...data.settings, monthlyNoticeDismissed: monthly.period })}
+          onClose={() => setRemindersOpen(false)}
+        />
+      )}
+
+      {monthCollectTarget && (
+        <MonthCollectModal
+          studentId={monthCollectTarget.studentId}
+          period={monthCollectTarget.period}
+          onClose={() => setMonthCollectTarget(null)}
+        />
       )}
 
       <FabMenu onNewClass={() => setOpenDay(dayKey(new Date()))} onNewStudent={() => setNewStudentOpen(true)} />

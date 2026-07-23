@@ -3956,18 +3956,38 @@ textarea:focus {
   justify-content: flex-start;
   gap: 10px;
 }
+/* Bloque de la cuota mensual en la ficha del alumno (v16): apenas separado, con aire. */
+.billing-fields {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* "Posponer este mes" en el recordatorio de cobros: discreto, alineado a la izquierda. */
+.reminders__dismiss {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
 .dialog__btn--option {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
   width: 100%;
+  height: auto; /* crece con el contenido: el texto de dos líneas no se corta */
   min-height: 52px;
   padding: 12px 16px;
   text-align: left;
+  /* .btn trae `white-space: nowrap`, que hacía que la aclaración se saliera del botón.
+     Acá el texto DEBE poder cortar en varias líneas y quedar dentro del botón. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 .dialog__btn-label {
   font-weight: 800;
+  white-space: normal;
 }
 /* La aclaración hereda el color del botón, apenas más tenue: se lee bien en claro y oscuro. */
 .dialog__btn-hint {
@@ -3975,6 +3995,7 @@ textarea:focus {
   font-weight: 600;
   line-height: 1.35;
   opacity: 0.82;
+  white-space: normal;
 }
 @keyframes dialogFade {
   from {

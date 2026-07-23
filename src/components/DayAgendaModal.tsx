@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Modal from './Modal';
 import { useAgenda } from '../state/AgendaContext';
 import { WEEKDAY_NAMES_LONG, CLASS_TYPE_LABEL } from '../lib/constants';
@@ -22,6 +23,7 @@ import { useDialog } from '../state/DialogContext';
 import { useDeleteClassFlow } from '../hooks/useDeleteClass';
 import AttendanceToggle from './AttendanceToggle';
 import PaymentToggle from './PaymentToggle';
+import MonthCollectModal from './MonthCollectModal';
 import type { ClassEntry } from '../types';
 
 interface DayAgendaModalProps {
@@ -63,6 +65,8 @@ export default function DayAgendaModal({
   } = useAgenda();
   const dialog = useDialog();
   const { isExiting, removeWithAnim } = useExitAnim();
+  // Cobro del mes abierto desde una clase de un alumno mensual (v16).
+  const [monthTarget, setMonthTarget] = useState<{ studentId: string; period: string } | null>(null);
   const date = parseDayKey(day);
   // Clases del día para mostrar: las reales MÁS las repeticiones de las series vivas que
   // todavía no vencieron. La clase real siempre gana sobre la virtual.
@@ -221,8 +225,11 @@ export default function DayAgendaModal({
               // de verdad, la deuda de siempre): "pagado" = su parte ya está saldada. Acá NO se
               // recalcula ninguna plata: solo se lee para saber qué botón mostrar activo.
               const coveredByPack = Boolean(part?.coveredByPack);
+              // Alumno mensual (v16): esta clase entra en la cuota del mes; no se cobra suelta.
+              const coveredByMonth = Boolean(part?.coveredByMonth);
+              const monthPeriod = part?.monthPeriod;
               const paid = part?.status === 'pagada';
-              const canToggle = Boolean(p.studentId) && Boolean(part) && !coveredByPack;
+              const canToggle = Boolean(p.studentId) && Boolean(part) && !coveredByPack && !coveredByMonth;
               // Deuda total del alumno (para tenerla presente al atenderlo) y cumple del día.
               const debt = p.studentId ? studentDebt(ledger, p.studentId) : { amount: 0, classes: 0 };
               const birthday = student ? isBirthdayOn(student, day) : false;
@@ -234,10 +241,17 @@ export default function DayAgendaModal({
                       🎂 ¡cumple!
                     </span>
                   )}
-                  <span className="student-line__amount">{formatCurrency(bd.net)}</span>
+                  {coveredByMonth ? (
+                    <span className="student-line__amount" title="Esta clase entra en la cuota del mes">
+                      {paid ? '✓ mes cobrado' : 'incluida en el mes'}
+                    </span>
+                  ) : (
+                    <span className="student-line__amount">{formatCurrency(bd.net)}</span>
+                  )}
                   {debt.amount > 0.5 && (
                     <span className="today-line__debt" title="Deuda total de este alumno">
-                      debe{debt.classes > 0 ? ` ${debt.classes} ${debt.classes === 1 ? 'clase' : 'clases'} ·` : ''}{' '}
+                      {/* Mensual: se debe "el mes", no una cantidad de clases sueltas. */}
+                      debe{!coveredByMonth && debt.classes > 0 ? ` ${debt.classes} ${debt.classes === 1 ? 'clase' : 'clases'} ·` : ''}{' '}
                       {formatCurrency(debt.amount)}
                     </span>
                   )}
@@ -251,17 +265,33 @@ export default function DayAgendaModal({
                       −{describeDiscount(bd.oneTimeDiscount)} puntual
                     </span>
                   )}
-                  {/* Botones "Pagado: Sí / No" por alumno (componente reutilizado en todas las
-                      vistas donde se abre un turno). Maneja solo/pack/estado internamente. */}
-                  <PaymentToggle day={day} start={start} studentId={p.studentId} />
-                  {/* Pago con importe/medio/fecha a elección (parcial o distinto), si todavía debe. */}
-                  {canToggle && !paid && (
-                    <button
-                      className="btn btn--tiny btn--ghost"
-                      onClick={() => onRegisterPayment(p.studentId as string, { day, start })}
-                    >
-                      Otro monto…
-                    </button>
+                  {coveredByMonth ? (
+                    // Mensual: se cobra el MES, no la clase. Un solo botón que abre el cobro del mes.
+                    !paid &&
+                    p.studentId &&
+                    monthPeriod && (
+                      <button
+                        className="btn btn--tiny btn--primary"
+                        onClick={() => setMonthTarget({ studentId: p.studentId as string, period: monthPeriod })}
+                      >
+                        Cobrar el mes
+                      </button>
+                    )
+                  ) : (
+                    <>
+                      {/* Botones "Pagado: Sí / No" por alumno (componente reutilizado en todas las
+                          vistas donde se abre un turno). Maneja solo/pack/estado internamente. */}
+                      <PaymentToggle day={day} start={start} studentId={p.studentId} />
+                      {/* Pago con importe/medio/fecha a elección (parcial o distinto), si todavía debe. */}
+                      {canToggle && !paid && (
+                        <button
+                          className="btn btn--tiny btn--ghost"
+                          onClick={() => onRegisterPayment(p.studentId as string, { day, start })}
+                        >
+                          Otro monto…
+                        </button>
+                      )}
+                    </>
                   )}
                   {/* Asistencia (vino / no vino). Solo registro: no toca la plata. */}
                   <AttendanceToggle attended={p.attended} onChange={(a) => setAttendance(day, start, idx, a)} />
@@ -368,6 +398,14 @@ export default function DayAgendaModal({
           );
         })}
       </div>
+
+      {monthTarget && (
+        <MonthCollectModal
+          studentId={monthTarget.studentId}
+          period={monthTarget.period}
+          onClose={() => setMonthTarget(null)}
+        />
+      )}
     </Modal>
   );
 }

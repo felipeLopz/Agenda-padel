@@ -20,6 +20,53 @@ import { parseDayKey } from './date';
 import { applyDiscount } from './discount';
 import { isChargeable } from './classMeta';
 
+// ---------------------------------------------------------------------------
+// Pago mensual (v16). Un alumno "mensual" paga una CUOTA fija por mes que cubre
+// TODAS sus clases de ese mes, sin importar cuántas caigan. La clave para no romper
+// la plata: la cuota se REPARTE entre las clases del mes, así la parte de cada clase
+// deja de ser el precio de lista y pasa a ser cuota÷clases. Con eso, la suma del mes
+// da exactamente la cuota y NINGUNA función de deuda cambia (todas siguen leyendo las
+// participaciones). Ver computeLedger.
+// ---------------------------------------------------------------------------
+
+/** Clave de mes "YYYY-MM" de una clave de día "AÑO-MES0-DIA". */
+export function monthKeyOf(dayKey: string): string {
+  const [y, m] = dayKey.split('-').map(Number);
+  return `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Cuota mensual que le corresponde a un alumno en un mes "YYYY-MM", o null si ese mes NO
+ * está en plan mensual (no es mensual, o el mes es anterior a `since`). Un mes puntual con
+ * importe propio (amountByMonth) pisa a la cuota vigente, así un aumento no re-precia meses
+ * viejos.
+ */
+export function monthlyFeeFor(student: Student | undefined, period: string): number | null {
+  const b = student?.billing;
+  if (!b || b.mode !== 'mensual') return null;
+  if (period < b.since) return null; // los meses anteriores al alta se cobran por clase, como antes
+  return b.amountByMonth?.[period] ?? b.amount;
+}
+
+/**
+ * Reparte `total` en `n` partes que suman EXACTAMENTE `total` (sin centavo perdido por
+ * redondeo). Reparte en centavos y la ÚLTIMA parte absorbe el resto: como esa parte queda
+ * entre total/2 y total (para n≥2), la resta final es exacta (lema de Sterbenz), así el
+ * total cierra al centavo. Para n=1 devuelve [total].
+ */
+export function splitExact(total: number, n: number): number[] {
+  if (n <= 1) return [total];
+  const out: number[] = [];
+  let acc = 0;
+  const perCents = Math.round((total / n) * 100) / 100; // parte "pareja", redondeada al centavo
+  for (let i = 0; i < n - 1; i++) {
+    out.push(perCents);
+    acc += perCents;
+  }
+  out.push(total - acc); // la última absorbe el resto: sum(out) === total exacto
+  return out;
+}
+
 export type ClassPayStatus = 'pagada' | 'parcial' | 'impaga';
 /** Estado de una clase, o "sin-seguimiento" si no tiene participantes con ficha. */
 export type ClassStatus = ClassPayStatus | 'sin-seguimiento';
@@ -38,12 +85,22 @@ export interface Participation {
   start: number;
   entry: ClassEntry;
   studentId: string;
-  /** Parte bruta = precio ÷ cantidad de participantes. */
+  /** Parte bruta EFECTIVA: precio de lista, o la parte de la cuota si el mes es mensual (v16). */
   gross: number;
+  /** Parte bruta de LISTA original (antes del reparto mensual). Sirve para no descuadrar los
+   *  totales por clase: el "facturado" de una clase mensual usa la cuota, no el precio de lista. */
+  listGross: number;
   /** Parte neta tras descuentos (fijo de ficha + puntual de la clase). */
   net: number;
   coveredByPack: boolean;
   packId?: string;
+  /**
+   * v16: la clase entra en el plan MENSUAL del alumno (su parte es un pedazo de la cuota,
+   * no el precio de lista). El período cubierto, "YYYY-MM". Solo para mostrar; la plata ya
+   * está en `net`/`owed`.
+   */
+  coveredByMonth?: boolean;
+  monthPeriod?: string;
   /** Adeudado en efectivo (0 si lo cubre un pack). */
   owed: number;
   /** Cuánto del adeudado está cubierto por pagos (asignados FIFO). */
@@ -157,12 +214,39 @@ export function computeLedger(data: AgendaData): Ledger {
           entry,
           studentId: p.studentId,
           gross,
+          listGross: gross, // el reparto mensual (más abajo) cambia `gross`, pero NO `listGross`
           net,
           coveredByPack: false,
           owed: net,
           paidToward: 0,
           status: 'impaga',
         });
+      });
+    }
+  }
+
+  // 1.5) Reparto mensual (v16). Para cada alumno mensual, sus clases cobrables de un mes
+  //   cubierto dejan de valer el precio de lista: la cuota del mes se reparte entre ellas
+  //   (cuota÷clases), de forma EXACTA (splitExact). Los descuentos de ficha NO se aplican
+  //   encima (la cuota ya es el precio final). Un mes SIN clases no genera cuota. Los meses
+  //   anteriores a `since` no se tocan: se cobran por clase, idénticos a antes.
+  for (const [studentId, parts] of Object.entries(partsByStudent)) {
+    const student = data.students[studentId];
+    if (student?.billing?.mode !== 'mensual') continue;
+    const byMonth: Record<string, Participation[]> = {};
+    for (const p of parts) (byMonth[monthKeyOf(p.day)] ??= []).push(p);
+    for (const [period, monthParts] of Object.entries(byMonth)) {
+      const fee = monthlyFeeFor(student, period);
+      if (fee == null) continue; // mes anterior al plan: se deja por clase
+      // Orden estable (por fecha) para que el reparto sea determinístico.
+      monthParts.sort((a, b) => participationTime(a.day, a.start) - participationTime(b.day, b.start));
+      const shares = splitExact(fee, monthParts.length);
+      monthParts.forEach((p, i) => {
+        p.gross = shares[i];
+        p.net = shares[i];
+        p.owed = shares[i];
+        p.coveredByMonth = true;
+        p.monthPeriod = period;
       });
     }
   }
@@ -208,9 +292,13 @@ export function computeLedger(data: AgendaData): Ledger {
     const totalPaid = studentPays.reduce((s, pay) => s + pay.amount, 0);
 
     const tiedByKey: Record<string, number> = {};
+    const tiedByPeriod: Record<string, number> = {};
     let freePool = 0;
     for (const pay of studentPays) {
-      if (pay.classRef) {
+      if (pay.kind === 'mes' && pay.period) {
+        // Cobro del mes: atado a su período, salda las clases de ese mes (v16).
+        tiedByPeriod[pay.period] = (tiedByPeriod[pay.period] ?? 0) + pay.amount;
+      } else if (pay.classRef) {
         const k = classKey(pay.classRef.day, pay.classRef.start);
         tiedByKey[k] = (tiedByKey[k] ?? 0) + pay.amount;
       } else {
@@ -230,6 +318,25 @@ export function computeLedger(data: AgendaData): Ledger {
       if (overflow > 0) freePool += overflow;
       tiedByKey[k] = 0;
     }
+
+    // 3a-bis) Cobro del mes atado a su período: salda las clases de ese mes, de la más
+    //   vieja a la más nueva (mismo criterio que un pago por clase, pero por período). El
+    //   sobrante (si pagó de más) vuelve al pool libre. Como el reparto del mes suma
+    //   exactamente la cuota, un pago igual a la cuota deja todas esas clases en cero.
+    for (const part of parts) {
+      if (part.coveredByPack) continue;
+      const period = part.monthPeriod;
+      if (!period) continue;
+      const pool = tiedByPeriod[period];
+      if (!pool) continue;
+      const remaining = part.owed - part.paidToward;
+      if (remaining <= 0) continue;
+      const applied = Math.min(remaining, pool);
+      part.paidToward += applied;
+      tiedByPeriod[period] = pool - applied;
+    }
+    // Lo que sobró de cada cobro del mes (pagó más que la cuota) va al pool libre.
+    for (const leftover of Object.values(tiedByPeriod)) freePool += leftover;
 
     // 3b) Pool libre repartido FIFO sobre lo que sigue adeudado (más viejo primero).
     for (const part of parts) {
@@ -302,7 +409,13 @@ export function computeLedger(data: AgendaData): Ledger {
       else if (allPaid) status = 'pagada';
       else if (anyCollected) status = 'parcial';
       else status = 'impaga';
-      byClass[key] = { gross: entry.price, collected, pending, status };
+      // Facturado EFECTIVO de la clase: el precio de lista, ajustado por lo mensual. Para un
+      // alumno mensual, su parte de la clase es un pedazo de la cuota (no el precio de lista);
+      // el ajuste (gross − listGross, que es 0 en los que pagan por clase) hace que el total
+      // del mes cierre en la cuota exacta y que caja/estadísticas no se descuadren.
+      let grossEff = entry.price;
+      for (const p of parts) grossEff += p.gross - p.listGross;
+      byClass[key] = { gross: grossEff, collected, pending, status };
     }
   }
 
@@ -357,7 +470,9 @@ function accumulate(data: AgendaData, ledger: Ledger, matches: (day: string) => 
       const acc = ledger.byClass[classKey(day, Number(startStr))];
       t.classes += 1;
       t.students += entry.participants.length;
-      t.total += entry.price;
+      // Facturado efectivo (ajustado por lo mensual): así el total del período cierra con lo
+      // cobrado + pendiente. Para clases por clase, acc.gross === entry.price (sin cambios).
+      t.total += acc?.gross ?? entry.price;
       t.collected += acc?.collected ?? 0;
       t.pending += acc?.pending ?? 0;
     }
@@ -484,6 +599,33 @@ export function monthDebtors(
   return Object.entries(byStudent)
     .map(([studentId, amount]) => ({ studentId, amount }))
     .sort((a, b) => b.amount - a.amount);
+}
+
+/**
+ * Estado del mes de un alumno mensual (v16), derivado del ledger. `null` si ese mes no está
+ * en plan mensual. `fee` = cuota repartida (suma de las partes de ese mes), `paid` = cuánto
+ * de esa cuota ya está cobrado, `settled` = si quedó saldada (dentro del centavo).
+ */
+export interface MonthStatus {
+  period: string;
+  fee: number;
+  paid: number;
+  settled: boolean;
+  classes: number;
+}
+
+export function studentMonthStatus(
+  ledger: Ledger,
+  studentId: string,
+  period: string
+): MonthStatus | null {
+  const acc = ledger.byStudent[studentId];
+  if (!acc) return null;
+  const parts = acc.participations.filter((p) => p.coveredByMonth && p.monthPeriod === period);
+  if (parts.length === 0) return null;
+  const fee = parts.reduce((s, p) => s + p.owed, 0);
+  const paid = parts.reduce((s, p) => s + p.paidToward, 0);
+  return { period, fee, paid, settled: fee - paid <= 0.01, classes: parts.length };
 }
 
 export interface Profit {

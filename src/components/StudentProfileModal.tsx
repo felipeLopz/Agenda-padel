@@ -8,7 +8,9 @@ import { WEEKDAY_NAMES, CLASS_TYPE_LABEL } from '../lib/constants';
 import { displayName, CATEGORY_LABELS, RANK_LABELS, whatsappLink } from '../lib/students';
 import { minutesToLabel } from '../lib/time';
 import { describeDiscount } from '../lib/discount';
-import { STATUS_LABEL, studentPayments, studentPacks } from '../lib/money';
+import { STATUS_LABEL, studentPayments, studentPacks, studentMonthStatus, type MonthStatus } from '../lib/money';
+import { MONTH_NAMES } from '../lib/constants';
+import MonthCollectModal from './MonthCollectModal';
 import { downloadReceipt } from '../lib/receipt';
 import { newId } from '../lib/id';
 import { useExitAnim } from '../hooks/useExitAnim';
@@ -32,6 +34,7 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
   const student = data.students[studentId];
   const [payOpen, setPayOpen] = useState(false);
   const [packOpen, setPackOpen] = useState(false);
+  const [monthTarget, setMonthTarget] = useState<string | null>(null);
   const [objText, setObjText] = useState('');
   const [noteText, setNoteText] = useState('');
   const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -80,6 +83,16 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
   const account = ledger.byStudent[studentId];
   const balance = account?.balance ?? 0;
   const participations = account?.participations ?? [];
+
+  // Cobro por mes (v16): si el alumno es mensual, los meses en los que tiene clases, del más
+  // nuevo al más viejo, con su estado (cuota / cobrado / saldado). Deriva del ledger.
+  const isMonthly = student.billing?.mode === 'mensual';
+  const monthStatuses: MonthStatus[] = isMonthly
+    ? [...new Set(participations.filter((p) => p.monthPeriod).map((p) => p.monthPeriod as string))]
+        .map((period) => studentMonthStatus(ledger, studentId, period))
+        .filter((s): s is MonthStatus => s !== null)
+        .sort((a, b) => b.period.localeCompare(a.period))
+    : [];
   const payments = studentPayments(data, studentId);
   const packs = studentPacks(ledger, studentId);
   const wa = whatsappLink(student.phone);
@@ -130,12 +143,21 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
         )}
 
         <div className="profile__actions">
-          <button className="btn btn--primary" onClick={() => setPayOpen(true)}>
-            💵 Registrar pago
-          </button>
-          <button className="btn" onClick={() => setPackOpen(true)}>
-            🎟 Nuevo pack
-          </button>
+          {isMonthly ? (
+            // Alumno mensual: el cobro principal es el del MES (mes actual por defecto).
+            <button className="btn btn--primary" onClick={() => setMonthTarget(currentPeriodKey())}>
+              📅 Cobrar el mes
+            </button>
+          ) : (
+            <button className="btn btn--primary" onClick={() => setPayOpen(true)}>
+              💵 Registrar pago
+            </button>
+          )}
+          {!isMonthly && (
+            <button className="btn" onClick={() => setPackOpen(true)}>
+              🎟 Nuevo pack
+            </button>
+          )}
           {wa && (
             <a className="btn btn--ghost" href={wa} target="_blank" rel="noopener noreferrer">
               💬 WhatsApp
@@ -148,6 +170,28 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
             {student.active ? '📦 Archivar' : '↩ Reactivar'}
           </button>
         </div>
+
+        {/* Cobro por mes (alumno mensual, v16) */}
+        {isMonthly && (
+          <div className="profile__packs">
+            <span className="profile__section-title">Cuota mensual</span>
+            {monthStatuses.length === 0 && (
+              <p className="settings__hint">Todavía no tiene clases cargadas en ningún mes del plan.</p>
+            )}
+            {monthStatuses.map((ms) => (
+              <div key={ms.period} className={`pack-row${ms.settled ? '' : ' pack-row--low'}`}>
+                <span className="pack-row__count">{periodLabelShort(ms.period)}</span>
+                <span className="pack-row__status">
+                  {ms.settled ? 'Cobrado' : `Debe ${formatCurrency(ms.fee - ms.paid)}`}
+                </span>
+                <span className="pack-row__date">{formatCurrency(ms.fee)} · {ms.classes} clase{ms.classes === 1 ? '' : 's'}</span>
+                <button className="btn btn--small btn--primary" onClick={() => setMonthTarget(ms.period)}>
+                  {ms.settled ? 'Ver' : 'Cobrar'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Packs */}
         {packs.length > 0 && (
@@ -340,6 +384,9 @@ export default function StudentProfileModal({ studentId, onClose, onEdit, onOpen
 
       {payOpen && <PaymentFormModal studentId={studentId} onClose={() => setPayOpen(false)} />}
       {packOpen && <PackFormModal studentId={studentId} onClose={() => setPackOpen(false)} />}
+      {monthTarget && (
+        <MonthCollectModal studentId={studentId} period={monthTarget} onClose={() => setMonthTarget(null)} />
+      )}
     </Modal>
   );
 }
@@ -349,4 +396,16 @@ function formatBirthday(iso: string): string {
   const [, m, d] = iso.split('-');
   if (!m || !d) return iso;
   return `${d}/${m}`;
+}
+
+/** Mes actual como "YYYY-MM". */
+function currentPeriodKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** "YYYY-MM" → "Julio 2026". */
+function periodLabelShort(period: string): string {
+  const [y, m] = period.split('-').map(Number);
+  return `${MONTH_NAMES[(m || 1) - 1]} ${y}`;
 }
